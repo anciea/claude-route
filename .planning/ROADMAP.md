@@ -18,6 +18,13 @@
 **Duration:** 2-3 days
 **Risk Level:** Medium
 **Dependencies:** None
+**Plans:** 3 plans
+**Requirements:** [AUTH-01, AUTH-02, AUTH-03, AUTH-04, SYS-05]
+
+Plans:
+- [ ] 01-01-PLAN.md — Google OAuth2 configuration and core service module
+- [ ] 01-02-PLAN.md — OAuth2 authentication routes and app wiring
+- [ ] 01-03-PLAN.md — Authentication middleware enhancement and integration verification
 
 ### Requirements Covered
 - AUTH-01: User can initiate Google OAuth2 login flow from web interface
@@ -149,4 +156,4 @@
 ---
 
 *Roadmap created: 2026-03-30*
-*Last updated: 2026-03-30 after initial planning*
+*Last updated: 2026-03-30 after Phase 1 planning*
