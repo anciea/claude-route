@@ -12,20 +12,21 @@ Users can authenticate with Google OAuth2 and immediately start using Claude Rel
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] **AUTH-01**: User can initiate Google OAuth2 login flow — Validated in Phase 1: Google OAuth2 Backend Foundation
+- [x] **AUTH-02**: System exchanges OAuth2 authorization code for user profile data — Validated in Phase 1: Google OAuth2 Backend Foundation
+- [x] **AUTH-03**: System validates Google OAuth2 tokens and user permissions — Validated in Phase 1: Google OAuth2 Backend Foundation
+- [x] **AUTH-04**: Authentication middleware supports Google OAuth2 tokens — Validated in Phase 1: Google OAuth2 Backend Foundation
+- [x] **SYS-05**: Backend routes handle Google OAuth2 callback processing — Validated in Phase 1: Google OAuth2 Backend Foundation
 
 ### Active
 
-- [ ] **AUTH-01**: User can initiate Google OAuth2 login flow
-- [ ] **AUTH-02**: System exchanges OAuth2 authorization code for user profile
-- [ ] **AUTH-03**: New user accounts are automatically created from Google profile data
-- [ ] **AUTH-04**: User profile uses Google ID as username, stores email and basic info
-- [ ] **AUTH-05**: System automatically generates full-permission API key on first login
-- [ ] **AUTH-06**: User receives API key immediately after successful authentication
-- [ ] **AUTH-07**: Existing user sessions and API keys remain functional during transition
-- [ ] **AUTH-08**: Google OAuth2 completely replaces LDAP authentication system
-- [ ] **AUTH-09**: User management interface supports Google-authenticated users
-- [ ] **AUTH-10**: Session management works with Google OAuth2 tokens
+- [ ] **USER-01**: New user accounts are automatically created from Google profile data
+- [ ] **USER-02**: User profile uses Google ID as username, stores email and basic info
+- [ ] **APIKEY-01**: System automatically generates full-permission API key on first login
+- [ ] **APIKEY-02**: User receives API key immediately after successful authentication
+- [ ] **SYS-01**: Google OAuth2 completely replaces LDAP authentication system
+- [ ] **SYS-02**: User management interface supports Google-authenticated users
+- [ ] **SYS-03**: Existing user sessions and API keys remain functional during transition
 
 ### Out of Scope
 
@@ -50,12 +51,18 @@ Users can authenticate with Google OAuth2 and immediately start using Claude Rel
 - User management routes (`src/routes/userRoutes.js`)
 - Clean Architecture pattern with service/handler separation
 
-**Integration Points:**
-- Replace `/user/login` endpoint
-- Modify user creation flow in `userService`
-- Integrate with existing API key generation
-- Update authentication middleware
-- Maintain existing user management UI
+**Current State:**
+- Phase 1 complete — Google OAuth2 backend foundation implemented
+- Authentication routes `/auth/google` and `/auth/google/callback` functional
+- GoogleOAuthService provides complete OAuth2 flow integration
+- Authentication middleware enhanced with Google OAuth2 support
+- Backward compatibility maintained for existing LDAP sessions
+
+**Remaining Integration Points:**
+- Modify user creation flow in `userService` for automatic user creation
+- Integrate automatic API key generation on first login
+- Replace LDAP endpoints with Google OAuth2 flow
+- Update user management UI for Google-authenticated users
 
 ## Constraints
 
@@ -69,13 +76,16 @@ Users can authenticate with Google OAuth2 and immediately start using Claude Rel
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Google OAuth2 service architecture | Separate service layer for OAuth2 operations | ✓ Good |
+| CSRF protection via Redis state | Secure state management with TTL | ✓ Good |
+| Backward compatible middleware | Maintain existing LDAP session support | ✓ Good |
 | Complete LDAP replacement | User wants simplified authentication flow | — Pending |
 | Auto API key generation | Immediate user productivity after login | — Pending |
 | Google ID as username | Unique identifier from Google OAuth2 | — Pending |
 | Full permissions default | User specified unrestricted access for new users | — Pending |
 
 ---
-*Last updated: 2026-03-30 after initial project definition*
+*Last updated: 2026-03-30 after Phase 1: Google OAuth2 Backend Foundation completion*
 
 ## Evolution
 
