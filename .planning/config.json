@@ -1,0 +1,12 @@
+{
+  "workflow": {
+    "research": false,
+    "modelProfile": "inherit",
+    "autoExecute": false
+  },
+  "preferences": {
+    "codeStyle": "existing",
+    "testingApproach": "minimal",
+    "deploymentStrategy": "incremental"
+  }
+}
