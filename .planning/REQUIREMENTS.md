@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Authentication Flow
 
-- [ ] **AUTH-01**: User can initiate Google OAuth2 login flow from web interface
+- [x] **AUTH-01**: User can initiate Google OAuth2 login flow from web interface
 - [x] **AUTH-02**: System exchanges OAuth2 authorization code for user profile data
 - [x] **AUTH-03**: System validates Google OAuth2 tokens and user permissions
 - [ ] **AUTH-04**: Authentication middleware supports Google OAuth2 tokens
@@ -36,7 +36,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **SYS-02**: Session management works with Google OAuth2 authentication
 - [ ] **SYS-03**: Existing API key validation and middleware remain functional
 - [ ] **SYS-04**: User interface login flow redirects to Google OAuth2
-- [ ] **SYS-05**: Backend routes handle Google OAuth2 callback processing
+- [x] **SYS-05**: Backend routes handle Google OAuth2 callback processing
 
 ## v2 Requirements
 
@@ -72,7 +72,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Pending |
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SYS-02 | Phase 3 | Pending |
 | SYS-03 | Phase 3 | Pending |
 | SYS-04 | Phase 3 | Pending |
-| SYS-05 | Phase 1 | Pending |
+| SYS-05 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 15 total
