@@ -9,7 +9,7 @@ jest.mock('../src/utils/logger', () => ({
 }))
 
 // Mock config
-jest.mock('../config/config.example.js', () => ({
+jest.mock('../config/config', () => ({
   googleOAuth: {
     enabled: true,
     clientId: 'test-client-id',
@@ -29,8 +29,10 @@ describe('GoogleOAuthService', () => {
   let googleOAuthService
 
   beforeEach(() => {
-    jest.resetModules()
     jest.clearAllMocks()
+  })
+
+  beforeAll(() => {
     googleOAuthService = require('../src/services/googleOAuthService')
   })
 
@@ -82,7 +84,7 @@ describe('GoogleOAuthService', () => {
           expires_in: 3600
         }
       }
-      axios.post.mockResolvedValue(mockResponse)
+      axios.post.mockResolvedValueOnce(mockResponse)
 
       const result = await googleOAuthService.exchangeCodeForTokens('test-code')
 
@@ -113,7 +115,7 @@ describe('GoogleOAuthService', () => {
           data: { error: 'invalid_grant' }
         }
       }
-      axios.post.mockRejectedValue(mockError)
+      axios.post.mockRejectedValueOnce(mockError)
 
       await expect(googleOAuthService.exchangeCodeForTokens('invalid-code'))
         .rejects
@@ -134,7 +136,7 @@ describe('GoogleOAuthService', () => {
           verified_email: true
         }
       }
-      axios.get.mockResolvedValue(mockResponse)
+      axios.get.mockResolvedValueOnce(mockResponse)
 
       const result = await googleOAuthService.getUserProfile('test-access-token')
 
@@ -164,7 +166,7 @@ describe('GoogleOAuthService', () => {
           data: { error: 'invalid_token' }
         }
       }
-      axios.get.mockRejectedValue(mockError)
+      axios.get.mockRejectedValueOnce(mockError)
 
       await expect(googleOAuthService.getUserProfile('invalid-token'))
         .rejects
@@ -182,7 +184,7 @@ describe('GoogleOAuthService', () => {
           exp: Math.floor(Date.now() / 1000) + 3600
         }
       }
-      axios.get.mockResolvedValue(mockResponse)
+      axios.get.mockResolvedValueOnce(mockResponse)
 
       const result = await googleOAuthService.validateToken('test-id-token')
 
@@ -201,7 +203,7 @@ describe('GoogleOAuthService', () => {
           sub: '12345'
         }
       }
-      axios.get.mockResolvedValue(mockResponse)
+      axios.get.mockResolvedValueOnce(mockResponse)
 
       await expect(googleOAuthService.validateToken('test-id-token'))
         .rejects
@@ -215,7 +217,7 @@ describe('GoogleOAuthService', () => {
           data: { error: 'invalid_token' }
         }
       }
-      axios.get.mockRejectedValue(mockError)
+      axios.get.mockRejectedValueOnce(mockError)
 
       await expect(googleOAuthService.validateToken('invalid-token'))
         .rejects
@@ -225,16 +227,12 @@ describe('GoogleOAuthService', () => {
 
   describe('validateDomain', () => {
     it('should return true when allowedDomains is empty (all domains allowed)', () => {
-      // Mock config with empty allowedDomains
-      jest.doMock('../config/config.example.js', () => ({
-        googleOAuth: {
-          allowedDomains: []
-        }
-      }))
-      jest.resetModules()
-      const service = require('../src/services/googleOAuthService')
+      // Create a new service instance with empty allowedDomains for this test
+      const GoogleOAuthService = jest.requireActual('../src/services/googleOAuthService.js').constructor
+      const testService = new GoogleOAuthService()
+      testService.config = { allowedDomains: [] }
 
-      const result = service.validateDomain('user@anydomain.com')
+      const result = testService.validateDomain('user@anydomain.com')
       expect(result).toBe(true)
     })
 
