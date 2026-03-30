@@ -22,7 +22,7 @@
 **Requirements:** [AUTH-01, AUTH-02, AUTH-03, AUTH-04, SYS-05]
 
 Plans:
-- [ ] 01-01-PLAN.md — Google OAuth2 configuration and core service module
+- [x] 01-01-PLAN.md — Google OAuth2 configuration and core service module
 - [ ] 01-02-PLAN.md — OAuth2 authentication routes and app wiring
 - [ ] 01-03-PLAN.md — Authentication middleware enhancement and integration verification
 
