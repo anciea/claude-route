@@ -53,7 +53,9 @@ describe('GoogleOAuthService', () => {
       const url = new URL(result.authUrl)
 
       expect(url.searchParams.get('client_id')).toBe('test-client-id')
-      expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:3000/auth/google/callback')
+      expect(url.searchParams.get('redirect_uri')).toBe(
+        'http://localhost:3000/auth/google/callback'
+      )
       expect(url.searchParams.get('scope')).toBe('openid email profile')
       expect(url.searchParams.get('response_type')).toBe('code')
       expect(url.searchParams.get('access_type')).toBe('offline')
@@ -117,9 +119,9 @@ describe('GoogleOAuthService', () => {
       }
       axios.post.mockRejectedValueOnce(mockError)
 
-      await expect(googleOAuthService.exchangeCodeForTokens('invalid-code'))
-        .rejects
-        .toThrow('HTTP 400')
+      await expect(googleOAuthService.exchangeCodeForTokens('invalid-code')).rejects.toThrow(
+        'HTTP 400'
+      )
     })
   })
 
@@ -140,13 +142,10 @@ describe('GoogleOAuthService', () => {
 
       const result = await googleOAuthService.getUserProfile('test-access-token')
 
-      expect(axios.get).toHaveBeenCalledWith(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
-        {
-          headers: { Authorization: 'Bearer test-access-token' },
-          timeout: 30000
-        }
-      )
+      expect(axios.get).toHaveBeenCalledWith('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: 'Bearer test-access-token' },
+        timeout: 30000
+      })
 
       expect(result).toEqual({
         googleId: '12345',
@@ -168,9 +167,7 @@ describe('GoogleOAuthService', () => {
       }
       axios.get.mockRejectedValueOnce(mockError)
 
-      await expect(googleOAuthService.getUserProfile('invalid-token'))
-        .rejects
-        .toThrow('HTTP 401')
+      await expect(googleOAuthService.getUserProfile('invalid-token')).rejects.toThrow('HTTP 401')
     })
   })
 
@@ -205,9 +202,9 @@ describe('GoogleOAuthService', () => {
       }
       axios.get.mockResolvedValueOnce(mockResponse)
 
-      await expect(googleOAuthService.validateToken('test-id-token'))
-        .rejects
-        .toThrow('Token audience mismatch')
+      await expect(googleOAuthService.validateToken('test-id-token')).rejects.toThrow(
+        'Token audience mismatch'
+      )
     })
 
     it('should throw error on HTTP failure', async () => {
@@ -219,16 +216,16 @@ describe('GoogleOAuthService', () => {
       }
       axios.get.mockRejectedValueOnce(mockError)
 
-      await expect(googleOAuthService.validateToken('invalid-token'))
-        .rejects
-        .toThrow('HTTP 400')
+      await expect(googleOAuthService.validateToken('invalid-token')).rejects.toThrow('HTTP 400')
     })
   })
 
   describe('validateDomain', () => {
     it('should return true when allowedDomains is empty (all domains allowed)', () => {
       // Create a new service instance with empty allowedDomains for this test
-      const GoogleOAuthService = jest.requireActual('../src/services/googleOAuthService.js').constructor
+      const GoogleOAuthService = jest.requireActual(
+        '../src/services/googleOAuthService.js'
+      ).constructor
       const testService = new GoogleOAuthService()
       testService.config = { allowedDomains: [] }
 
