@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **AUTH-01**: User can initiate Google OAuth2 login flow from web interface
 - [x] **AUTH-02**: System exchanges OAuth2 authorization code for user profile data
 - [x] **AUTH-03**: System validates Google OAuth2 tokens and user permissions
-- [ ] **AUTH-04**: Authentication middleware supports Google OAuth2 tokens
+- [x] **AUTH-04**: Authentication middleware supports Google OAuth2 tokens
 
 ### User Management
 
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
-| AUTH-04 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Complete |
 | USER-01 | Phase 2 | Pending |
 | USER-02 | Phase 2 | Pending |
 | USER-03 | Phase 2 | Pending |
