@@ -1530,7 +1530,9 @@ const authenticateUser = async (req, res, next) => {
       lastName: user.lastName,
       role: user.role,
       sessionToken,
-      sessionCreatedAt: session.createdAt
+      sessionCreatedAt: session.createdAt,
+      authMethod: session.authMethod || 'ldap',
+      googleId: session.googleId || null
     }
 
     const authDuration = Date.now() - startTime
@@ -1618,7 +1620,9 @@ const authenticateUserOrAdmin = async (req, res, next) => {
               lastName: user.lastName,
               role: user.role,
               sessionToken: userToken,
-              sessionCreatedAt: session.createdAt
+              sessionCreatedAt: session.createdAt,
+              authMethod: session.authMethod || 'ldap',
+              googleId: session.googleId || null
             }
             req.userType = 'user'
 
