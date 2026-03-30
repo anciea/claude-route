@@ -181,6 +181,21 @@ const config = {
     }
   },
 
+  // 🌐 Google OAuth2 认证配置
+  googleOAuth: {
+    enabled: process.env.GOOGLE_OAUTH_ENABLED === 'true',
+    clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
+    callbackUrl:
+      process.env.GOOGLE_OAUTH_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
+    scopes: (process.env.GOOGLE_OAUTH_SCOPES || 'openid,email,profile')
+      .split(',')
+      .map((s) => s.trim()),
+    allowedDomains: process.env.GOOGLE_OAUTH_ALLOWED_DOMAINS
+      ? process.env.GOOGLE_OAUTH_ALLOWED_DOMAINS.split(',').map((d) => d.trim())
+      : [] // Empty array means all domains allowed
+  },
+
   // 👥 用户管理配置
   userManagement: {
     enabled: process.env.USER_MANAGEMENT_ENABLED === 'true',
