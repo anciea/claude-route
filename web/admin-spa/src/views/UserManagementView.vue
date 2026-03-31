@@ -270,9 +270,9 @@
                 <!-- Google Avatar or Placeholder -->
                 <img
                   v-if="user.avatarUrl"
-                  :src="user.avatarUrl"
                   :alt="user.displayName"
                   class="h-10 w-10 rounded-full object-cover"
+                  :src="user.avatarUrl"
                   @error="handleAvatarError"
                 />
                 <div
