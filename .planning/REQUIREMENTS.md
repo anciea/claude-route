@@ -20,7 +20,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **USER-02**: User profile uses Google ID as primary username identifier
 - [x] **USER-03**: System stores Google email, display name, and avatar URL
 - [x] **USER-04**: User profiles integrate with existing Redis-based user management
-- [ ] **USER-05**: User management interface displays Google-authenticated users correctly
+- [x] **USER-05**: User management interface displays Google-authenticated users correctly
 
 ### API Key Generation
 
@@ -35,7 +35,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SYS-01**: Google OAuth2 completely replaces LDAP authentication endpoints
 - [x] **SYS-02**: Session management works with Google OAuth2 authentication
 - [x] **SYS-03**: Existing API key validation and middleware remain functional
-- [ ] **SYS-04**: User interface login flow redirects to Google OAuth2
+- [x] **SYS-04**: User interface login flow redirects to Google OAuth2
 - [x] **SYS-05**: Backend routes handle Google OAuth2 callback processing
 
 ## v2 Requirements
@@ -80,7 +80,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | USER-02 | Phase 2 | Complete |
 | USER-03 | Phase 2 | Complete |
 | USER-04 | Phase 2 | Complete |
-| USER-05 | Phase 3 | Pending |
+| USER-05 | Phase 3 | Complete |
 | APIKEY-01 | Phase 2 | Complete |
 | APIKEY-02 | Phase 2 | Complete |
 | APIKEY-03 | Phase 2 | Complete |
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SYS-01 | Phase 3 | Complete |
 | SYS-02 | Phase 3 | Complete |
 | SYS-03 | Phase 3 | Complete |
-| SYS-04 | Phase 3 | Pending |
+| SYS-04 | Phase 3 | Complete |
 | SYS-05 | Phase 1 | Complete |
 
 **Coverage:**
