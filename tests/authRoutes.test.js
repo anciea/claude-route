@@ -234,7 +234,7 @@ describe('Auth Routes', () => {
       })
     })
 
-    it('should return 200 with user and session token on successful authentication', async () => {
+    it('should redirect to frontend with user data on successful authentication', async () => {
       const tokenData = { accessToken: 'access-token' }
       const profile = {
         googleId: '123',
@@ -274,24 +274,11 @@ describe('Auth Routes', () => {
         .get('/auth/google/callback')
         .query({ code: 'test-code', state: 'valid-state' })
 
-      expect(response.status).toBe(200)
-      expect(response.body).toEqual({
-        success: true,
-        message: 'Account created and logged in successfully',
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          displayName: user.displayName,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          picture: profile.picture
-        },
-        sessionToken,
-        isNewUser: true,
-        apiKey: 'cr_testapikey123'
-      })
+      expect(response.status).toBe(302)
+      expect(response.header.location).toMatch(/token=session-token-123/)
+      expect(response.header.location).toMatch(/user=/)
+      expect(response.header.location).toMatch(/isNewUser=true/)
+      expect(response.header.location).toMatch(/apiKey=cr_testapikey123/)
 
       expect(googleLoginService.handleGoogleLogin).toHaveBeenCalledWith(profile, {
         role: config.userManagement.defaultUserRole
@@ -304,7 +291,7 @@ describe('Auth Routes', () => {
       expect(redis.del).toHaveBeenCalledWith('oauth_state:valid-state')
     })
 
-    it('should return apiKey for new user login', async () => {
+    it('should redirect with apiKey for new user login', async () => {
       const tokenData = { accessToken: 'access-token' }
       const profile = {
         googleId: '456',
@@ -344,13 +331,12 @@ describe('Auth Routes', () => {
         .get('/auth/google/callback')
         .query({ code: 'test-code', state: 'valid-state' })
 
-      expect(response.status).toBe(200)
-      expect(response.body.apiKey).toBe('cr_newkey')
-      expect(response.body.isNewUser).toBe(true)
-      expect(response.body.message).toBe('Account created and logged in successfully')
+      expect(response.status).toBe(302)
+      expect(response.header.location).toMatch(/apiKey=cr_newkey/)
+      expect(response.header.location).toMatch(/isNewUser=true/)
     })
 
-    it('should NOT return apiKey for returning user login', async () => {
+    it('should redirect without apiKey for returning user login', async () => {
       const tokenData = { accessToken: 'access-token' }
       const profile = {
         googleId: '789',
@@ -390,13 +376,12 @@ describe('Auth Routes', () => {
         .get('/auth/google/callback')
         .query({ code: 'test-code', state: 'valid-state' })
 
-      expect(response.status).toBe(200)
-      expect(response.body.apiKey).toBeUndefined()
-      expect(response.body.isNewUser).toBe(false)
-      expect(response.body.message).toBe('Login successful')
+      expect(response.status).toBe(302)
+      expect(response.header.location).not.toMatch(/apiKey=/)
+      expect(response.header.location).toMatch(/isNewUser=false/)
     })
 
-    it('should return apiKeyWarning when key generation fails', async () => {
+    it('should redirect with apiKeyWarning when key generation fails', async () => {
       const tokenData = { accessToken: 'access-token' }
       const profile = {
         googleId: '101',
@@ -436,12 +421,10 @@ describe('Auth Routes', () => {
         .get('/auth/google/callback')
         .query({ code: 'test-code', state: 'valid-state' })
 
-      expect(response.status).toBe(200)
-      expect(response.body.apiKeyWarning).toBe(
-        'API key generation failed. Please contact administrator.'
-      )
-      expect(response.body.apiKey).toBeUndefined()
-      expect(response.body.isNewUser).toBe(true)
+      expect(response.status).toBe(302)
+      expect(response.header.location).toMatch(/apiKeyWarning=/)
+      expect(response.header.location).not.toMatch(/apiKey=cr_/)
+      expect(response.header.location).toMatch(/isNewUser=true/)
     })
 
     it('should return 500 on unexpected error', async () => {
