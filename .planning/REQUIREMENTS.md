@@ -32,9 +32,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### System Integration
 
-- [ ] **SYS-01**: Google OAuth2 completely replaces LDAP authentication endpoints
-- [ ] **SYS-02**: Session management works with Google OAuth2 authentication
-- [ ] **SYS-03**: Existing API key validation and middleware remain functional
+- [x] **SYS-01**: Google OAuth2 completely replaces LDAP authentication endpoints
+- [x] **SYS-02**: Session management works with Google OAuth2 authentication
+- [x] **SYS-03**: Existing API key validation and middleware remain functional
 - [ ] **SYS-04**: User interface login flow redirects to Google OAuth2
 - [x] **SYS-05**: Backend routes handle Google OAuth2 callback processing
 
@@ -86,9 +86,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | APIKEY-03 | Phase 2 | Complete |
 | APIKEY-04 | Phase 2 | Complete |
 | APIKEY-05 | Phase 2 | Complete |
-| SYS-01 | Phase 3 | Pending |
-| SYS-02 | Phase 3 | Pending |
-| SYS-03 | Phase 3 | Pending |
+| SYS-01 | Phase 3 | Complete |
+| SYS-02 | Phase 3 | Complete |
+| SYS-03 | Phase 3 | Complete |
 | SYS-04 | Phase 3 | Pending |
 | SYS-05 | Phase 1 | Complete |
 

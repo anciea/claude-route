@@ -99,7 +99,7 @@ Plans:
 **Requirements:** [USER-05, SYS-01, SYS-02, SYS-03, SYS-04]
 
 Plans:
-- [ ] 03-01-PLAN.md — Backend LDAP removal: delete ldapService, remove LDAP routes, update auth middleware and OEM settings
+- [x] 03-01-PLAN.md — Backend LDAP removal: delete ldapService, remove LDAP routes, update auth middleware and OEM settings
 - [ ] 03-02-PLAN.md — Frontend update: Google OAuth2 login redirect, ldapEnabled to googleOAuthEnabled migration, user management UI enhancement
 - [ ] 03-03-PLAN.md — Integration testing, build verification, and human end-to-end validation
 
