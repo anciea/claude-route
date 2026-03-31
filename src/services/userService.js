@@ -29,6 +29,7 @@ class UserService {
         displayName,
         firstName,
         lastName,
+        avatarUrl = null,
         role = config.userManagement.defaultUserRole,
         isActive = true
       } = userData
@@ -46,6 +47,7 @@ class UserService {
           displayName,
           firstName,
           lastName,
+          avatarUrl,
           role,
           isActive,
           createdAt: new Date().toISOString(),
@@ -67,6 +69,7 @@ class UserService {
           displayName,
           firstName,
           lastName,
+          avatarUrl,
           updatedAt: new Date().toISOString()
         }
       }
@@ -82,7 +85,7 @@ class UserService {
       }
 
       logger.info(`📝 ${isNewUser ? 'Created' : 'Updated'} user: ${username} (${user.id})`)
-      return user
+      return { user, isNewUser }
     } catch (error) {
       logger.error('❌ Error creating/updating user:', error)
       throw error
