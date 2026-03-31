@@ -284,12 +284,13 @@ router.get('/oem-settings', async (req, res) => {
       }
     }
 
-    // 添加 LDAP 启用状态到响应中
+    // 添加认证系统状态到响应中
     return res.json({
       success: true,
       data: {
         ...settings,
-        ldapEnabled: config.ldap && config.ldap.enabled === true
+        googleOAuthEnabled: config.googleOAuth && config.googleOAuth.enabled === true,
+        userManagementEnabled: config.userManagement && config.userManagement.enabled === true
       }
     })
   } catch (error) {

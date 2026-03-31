@@ -4,7 +4,7 @@ const userService = require('../services/userService')
 const apiKeyService = require('../services/apiKeyService')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
-const inputValidator = require('../utils/inputValidator')
+const redis = require('../models/redis')
 const { authenticateUser, authenticateUserOrAdmin, requireAdmin } = require('../middleware/auth')
 
 // 🚪 用户登出端点
