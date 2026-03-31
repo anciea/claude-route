@@ -24,8 +24,10 @@ describe('GoogleLoginService', () => {
   let googleLoginService
 
   beforeEach(() => {
-    jest.resetModules()
     jest.clearAllMocks()
+  })
+
+  beforeAll(() => {
     googleLoginService = require('../src/services/googleLoginService')
   })
 
@@ -274,6 +276,8 @@ describe('GoogleLoginService', () => {
         user: { ...mockUser, role: 'admin' },
         isNewUser: true
       })
+
+      apiKeyService.generateApiKey.mockResolvedValue(mockApiKey)
 
       await googleLoginService.handleGoogleLogin(mockGoogleProfile, { role: 'admin' })
 
