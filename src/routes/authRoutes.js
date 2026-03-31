@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const googleOAuthService = require('../services/googleOAuthService')
 const userService = require('../services/userService')
+const googleLoginService = require('../services/googleLoginService')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
 const redis = require('../models/redis')
@@ -108,19 +109,11 @@ router.get('/google/callback', async (req, res) => {
       })
     }
 
-    // Map Google profile to user data
-    const userData = {
-      username: profile.googleId,
-      email: profile.email,
-      displayName: profile.name,
-      firstName: profile.givenName,
-      lastName: profile.familyName,
-      role: config.userManagement.defaultUserRole,
-      isActive: true
-    }
-
-    // Create or update user
-    const user = await userService.createOrUpdateUser(userData)
+    // Orchestrate user creation and API key generation via googleLoginService (per D-01)
+    const { user, isNewUser, apiKey, apiKeyWarning } = await googleLoginService.handleGoogleLogin(
+      profile,
+      { role: config.userManagement.defaultUserRole }
+    )
 
     // Check if user account is active
     if (!user.isActive) {
@@ -137,7 +130,7 @@ router.get('/google/callback', async (req, res) => {
     // Record user login
     await userService.recordUserLogin(user.id)
 
-    // Create user session
+    // Create user session (per D-09 - maintain backward compatibility)
     const sessionToken = await userService.createUserSession(user.id, {
       authMethod: 'google_oauth2',
       googleId: profile.googleId
@@ -147,13 +140,14 @@ router.get('/google/callback', async (req, res) => {
     logger.info('Google OAuth2 login successful', {
       username: profile.googleId,
       email: profile.email,
-      userId: user.id
+      userId: user.id,
+      isNewUser
     })
 
-    // Return success response
-    res.json({
+    // Build response (per D-07, D-08)
+    const response = {
       success: true,
-      message: 'Login successful',
+      message: isNewUser ? 'Account created and logged in successfully' : 'Login successful',
       user: {
         id: user.id,
         username: user.username,
@@ -164,8 +158,21 @@ router.get('/google/callback', async (req, res) => {
         role: user.role,
         picture: profile.picture
       },
-      sessionToken
-    })
+      sessionToken,
+      isNewUser
+    }
+
+    // Include API key for new users (per D-08, APIKEY-04)
+    if (apiKey) {
+      response.apiKey = apiKey
+    }
+
+    // Include warning if API key generation failed (per D-11)
+    if (apiKeyWarning) {
+      response.apiKeyWarning = apiKeyWarning
+    }
+
+    res.json(response)
   } catch (error) {
     logger.error('Unexpected error in Google OAuth2 callback:', error)
     res.status(500).json({

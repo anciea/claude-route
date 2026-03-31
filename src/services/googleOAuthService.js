@@ -17,7 +17,7 @@ class GoogleOAuthService {
     if (this.config.enabled) {
       this.validateConfiguration()
       logger.info('🌐 Google OAuth2 service initialized', {
-        clientId: this.config.clientId?.substring(0, 10) + '...',
+        clientId: `${this.config.clientId?.substring(0, 10)}...`,
         callbackUrl: this.config.callbackUrl,
         scopes: this.config.scopes,
         allowedDomainsCount: this.config.allowedDomains?.length || 0
@@ -78,7 +78,7 @@ class GoogleOAuthService {
       redirect_uri: this.config.callbackUrl,
       response_type: 'code',
       scope: this.config.scopes.join(' '),
-      state: state,
+      state,
       access_type: 'offline',
       prompt: 'consent'
     })
@@ -86,7 +86,7 @@ class GoogleOAuthService {
     const authUrl = `${AUTH_URL}?${params.toString()}`
 
     logger.debug('🔗 Generated Google OAuth2 authorization URL', {
-      state: state,
+      state,
       scopes: this.config.scopes
     })
 
@@ -109,7 +109,7 @@ class GoogleOAuthService {
         TOKEN_URL,
         {
           grant_type: 'authorization_code',
-          code: code,
+          code,
           redirect_uri: this.config.callbackUrl,
           client_id: this.config.clientId,
           client_secret: this.config.clientSecret
@@ -254,7 +254,7 @@ class GoogleOAuthService {
     const isAllowed = this.config.allowedDomains.includes(emailDomain)
 
     logger.debug('🔒 Domain validation result', {
-      email: email,
+      email,
       domain: emailDomain,
       allowed: isAllowed,
       allowedDomains: this.config.allowedDomains
