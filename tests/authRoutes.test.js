@@ -20,6 +20,10 @@ jest.mock('../src/services/userService', () => ({
   createUserSession: jest.fn()
 }))
 
+jest.mock('../src/services/googleLoginService', () => ({
+  handleGoogleLogin: jest.fn()
+}))
+
 jest.mock('../src/models/redis', () => ({
   setex: jest.fn(),
   get: jest.fn(),
@@ -41,7 +45,7 @@ const express = require('express')
 
 describe('Auth Routes', () => {
   let authRoutes, app
-  let googleOAuthService, userService, redis, config
+  let googleOAuthService, userService, googleLoginService, redis, config
 
   beforeEach(() => {
     jest.resetModules()
@@ -50,6 +54,7 @@ describe('Auth Routes', () => {
     // Get mocked modules
     googleOAuthService = require('../src/services/googleOAuthService')
     userService = require('../src/services/userService')
+    googleLoginService = require('../src/services/googleLoginService')
     redis = require('../src/models/redis')
     config = require('../config/config')
 
@@ -211,7 +216,12 @@ describe('Auth Routes', () => {
       googleOAuthService.exchangeCodeForTokens.mockResolvedValue(tokenData)
       googleOAuthService.getUserProfile.mockResolvedValue(profile)
       googleOAuthService.validateDomain.mockReturnValue(true)
-      userService.createOrUpdateUser.mockResolvedValue(user)
+      googleLoginService.handleGoogleLogin.mockResolvedValue({
+        user,
+        isNewUser: false,
+        apiKey: null,
+        apiKeyWarning: null
+      })
 
       const response = await request(app)
         .get('/auth/google/callback')
@@ -251,7 +261,12 @@ describe('Auth Routes', () => {
       googleOAuthService.exchangeCodeForTokens.mockResolvedValue(tokenData)
       googleOAuthService.getUserProfile.mockResolvedValue(profile)
       googleOAuthService.validateDomain.mockReturnValue(true)
-      userService.createOrUpdateUser.mockResolvedValue(user)
+      googleLoginService.handleGoogleLogin.mockResolvedValue({
+        user,
+        isNewUser: true,
+        apiKey: 'cr_testapikey123',
+        apiKeyWarning: null
+      })
       userService.recordUserLogin.mockResolvedValue()
       userService.createUserSession.mockResolvedValue(sessionToken)
 
@@ -262,7 +277,7 @@ describe('Auth Routes', () => {
       expect(response.status).toBe(200)
       expect(response.body).toEqual({
         success: true,
-        message: 'Login successful',
+        message: 'Account created and logged in successfully',
         user: {
           id: user.id,
           username: user.username,
@@ -273,17 +288,13 @@ describe('Auth Routes', () => {
           role: user.role,
           picture: profile.picture
         },
-        sessionToken
+        sessionToken,
+        isNewUser: true,
+        apiKey: 'cr_testapikey123'
       })
 
-      expect(userService.createOrUpdateUser).toHaveBeenCalledWith({
-        username: profile.googleId,
-        email: profile.email,
-        displayName: profile.name,
-        firstName: profile.givenName,
-        lastName: profile.familyName,
-        role: config.userManagement.defaultUserRole,
-        isActive: true
+      expect(googleLoginService.handleGoogleLogin).toHaveBeenCalledWith(profile, {
+        role: config.userManagement.defaultUserRole
       })
       expect(userService.recordUserLogin).toHaveBeenCalledWith(user.id)
       expect(userService.createUserSession).toHaveBeenCalledWith(user.id, {
@@ -291,6 +302,146 @@ describe('Auth Routes', () => {
         googleId: profile.googleId
       })
       expect(redis.del).toHaveBeenCalledWith('oauth_state:valid-state')
+    })
+
+    it('should return apiKey for new user login', async () => {
+      const tokenData = { accessToken: 'access-token' }
+      const profile = {
+        googleId: '456',
+        email: 'newuser@allowed.com',
+        name: 'New User',
+        givenName: 'New',
+        familyName: 'User',
+        picture: 'https://example.com/newpic.jpg'
+      }
+      const user = {
+        id: 2,
+        username: '456',
+        email: 'newuser@allowed.com',
+        displayName: 'New User',
+        firstName: 'New',
+        lastName: 'User',
+        role: 'user',
+        isActive: true
+      }
+      const sessionToken = 'session-token-456'
+
+      redis.get.mockResolvedValue(JSON.stringify({ createdAt: new Date().toISOString() }))
+      redis.del.mockResolvedValue(1)
+      googleOAuthService.exchangeCodeForTokens.mockResolvedValue(tokenData)
+      googleOAuthService.getUserProfile.mockResolvedValue(profile)
+      googleOAuthService.validateDomain.mockReturnValue(true)
+      googleLoginService.handleGoogleLogin.mockResolvedValue({
+        user,
+        isNewUser: true,
+        apiKey: 'cr_newkey',
+        apiKeyWarning: null
+      })
+      userService.recordUserLogin.mockResolvedValue()
+      userService.createUserSession.mockResolvedValue(sessionToken)
+
+      const response = await request(app)
+        .get('/auth/google/callback')
+        .query({ code: 'test-code', state: 'valid-state' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.apiKey).toBe('cr_newkey')
+      expect(response.body.isNewUser).toBe(true)
+      expect(response.body.message).toBe('Account created and logged in successfully')
+    })
+
+    it('should NOT return apiKey for returning user login', async () => {
+      const tokenData = { accessToken: 'access-token' }
+      const profile = {
+        googleId: '789',
+        email: 'returning@allowed.com',
+        name: 'Returning User',
+        givenName: 'Returning',
+        familyName: 'User',
+        picture: 'https://example.com/returnpic.jpg'
+      }
+      const user = {
+        id: 3,
+        username: '789',
+        email: 'returning@allowed.com',
+        displayName: 'Returning User',
+        firstName: 'Returning',
+        lastName: 'User',
+        role: 'user',
+        isActive: true
+      }
+      const sessionToken = 'session-token-789'
+
+      redis.get.mockResolvedValue(JSON.stringify({ createdAt: new Date().toISOString() }))
+      redis.del.mockResolvedValue(1)
+      googleOAuthService.exchangeCodeForTokens.mockResolvedValue(tokenData)
+      googleOAuthService.getUserProfile.mockResolvedValue(profile)
+      googleOAuthService.validateDomain.mockReturnValue(true)
+      googleLoginService.handleGoogleLogin.mockResolvedValue({
+        user,
+        isNewUser: false,
+        apiKey: null,
+        apiKeyWarning: null
+      })
+      userService.recordUserLogin.mockResolvedValue()
+      userService.createUserSession.mockResolvedValue(sessionToken)
+
+      const response = await request(app)
+        .get('/auth/google/callback')
+        .query({ code: 'test-code', state: 'valid-state' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.apiKey).toBeUndefined()
+      expect(response.body.isNewUser).toBe(false)
+      expect(response.body.message).toBe('Login successful')
+    })
+
+    it('should return apiKeyWarning when key generation fails', async () => {
+      const tokenData = { accessToken: 'access-token' }
+      const profile = {
+        googleId: '101',
+        email: 'failedkey@allowed.com',
+        name: 'Failed Key User',
+        givenName: 'Failed',
+        familyName: 'Key',
+        picture: 'https://example.com/failpic.jpg'
+      }
+      const user = {
+        id: 4,
+        username: '101',
+        email: 'failedkey@allowed.com',
+        displayName: 'Failed Key User',
+        firstName: 'Failed',
+        lastName: 'Key',
+        role: 'user',
+        isActive: true
+      }
+      const sessionToken = 'session-token-101'
+
+      redis.get.mockResolvedValue(JSON.stringify({ createdAt: new Date().toISOString() }))
+      redis.del.mockResolvedValue(1)
+      googleOAuthService.exchangeCodeForTokens.mockResolvedValue(tokenData)
+      googleOAuthService.getUserProfile.mockResolvedValue(profile)
+      googleOAuthService.validateDomain.mockReturnValue(true)
+      googleLoginService.handleGoogleLogin.mockResolvedValue({
+        user,
+        isNewUser: true,
+        apiKey: null,
+        apiKeyWarning: 'API key generation failed. Please contact administrator.'
+      })
+      userService.recordUserLogin.mockResolvedValue()
+      userService.createUserSession.mockResolvedValue(sessionToken)
+
+      const response = await request(app)
+        .get('/auth/google/callback')
+        .query({ code: 'test-code', state: 'valid-state' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.apiKeyWarning).toBe(
+        'API key generation failed. Please contact administrator.'
+      )
+      expect(response.body.apiKey).toBeUndefined()
+      expect(response.body.isNewUser).toBe(true)
     })
 
     it('should return 500 on unexpected error', async () => {
