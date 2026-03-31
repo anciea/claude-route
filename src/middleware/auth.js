@@ -1531,7 +1531,7 @@ const authenticateUser = async (req, res, next) => {
       role: user.role,
       sessionToken,
       sessionCreatedAt: session.createdAt,
-      authMethod: session.authMethod || 'ldap',
+      authMethod: session.authMethod || 'session',
       googleId: session.googleId || null
     }
 
@@ -1621,7 +1621,7 @@ const authenticateUserOrAdmin = async (req, res, next) => {
               role: user.role,
               sessionToken: userToken,
               sessionCreatedAt: session.createdAt,
-              authMethod: session.authMethod || 'ldap',
+              authMethod: session.authMethod || 'session',
               googleId: session.googleId || null
             }
             req.userType = 'user'
