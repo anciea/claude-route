@@ -2,7 +2,8 @@
   "workflow": {
     "research": false,
     "modelProfile": "inherit",
-    "autoExecute": false
+    "autoExecute": false,
+    "_auto_chain_active": false
   },
   "preferences": {
     "codeStyle": "existing",
