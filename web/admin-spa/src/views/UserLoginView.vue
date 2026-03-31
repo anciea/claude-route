@@ -29,56 +29,12 @@
           User Sign In
         </h2>
         <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Sign in to your account to manage your API keys
+          Sign in with your Google account to manage your API keys
         </p>
       </div>
 
       <div class="rounded-lg bg-white px-6 py-8 shadow dark:bg-gray-800 dark:shadow-xl">
-        <form class="space-y-6" @submit.prevent="handleLogin">
-          <div>
-            <label
-              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              for="username"
-            >
-              Username
-            </label>
-            <div class="mt-1">
-              <input
-                id="username"
-                v-model="form.username"
-                autocomplete="username"
-                class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-400 dark:focus:ring-blue-400 sm:text-sm"
-                :disabled="loading"
-                name="username"
-                placeholder="Enter your username"
-                required
-                type="text"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              for="password"
-            >
-              Password
-            </label>
-            <div class="mt-1">
-              <input
-                id="password"
-                v-model="form.password"
-                autocomplete="current-password"
-                class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-400 dark:focus:ring-blue-400 sm:text-sm"
-                :disabled="loading"
-                name="password"
-                placeholder="Enter your password"
-                required
-                type="password"
-              />
-            </div>
-          </div>
-
+        <div class="space-y-6">
           <div
             v-if="error"
             class="rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20"
@@ -102,8 +58,8 @@
           <div>
             <button
               class="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-400 dark:focus:ring-offset-gray-800"
-              :disabled="loading || !form.username || !form.password"
-              type="submit"
+              :disabled="loading"
+              @click="handleGoogleLogin"
             >
               <span v-if="loading" class="absolute inset-y-0 left-0 flex items-center pl-3">
                 <svg
@@ -127,7 +83,27 @@
                   ></path>
                 </svg>
               </span>
-              {{ loading ? 'Signing In...' : 'Sign In' }}
+              <span v-if="!loading" class="absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg class="h-5 w-5" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285f4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34a853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#fbbc05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#ea4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+              </span>
+              {{ loading ? 'Redirecting...' : 'Sign in with Google' }}
             </button>
           </div>
 
@@ -139,20 +115,21 @@
               Admin Login
             </router-link>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
-import { showToast } from '@/utils/tools'
+import { showToast, APP_CONFIG } from '@/utils/tools'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -160,38 +137,60 @@ const themeStore = useThemeStore()
 const loading = ref(false)
 const error = ref('')
 
-const form = reactive({
-  username: '',
-  password: ''
-})
-
-const handleLogin = async () => {
-  if (!form.username || !form.password) {
-    error.value = 'Please enter both username and password'
-    return
-  }
-
+const handleGoogleLogin = async () => {
   loading.value = true
   error.value = ''
 
   try {
-    await userStore.login({
-      username: form.username,
-      password: form.password
-    })
-
-    showToast('Login successful!', 'success')
-    router.push('/user-dashboard')
+    window.location.href = `${APP_CONFIG.apiPrefix}/auth/google`
   } catch (err) {
-    console.error('Login error:', err)
-    error.value = err.response?.data?.message || err.message || 'Login failed'
-  } finally {
+    console.error('Google login error:', err)
+    error.value = 'Failed to initiate Google login'
     loading.value = false
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 初始化主题（因为该页面不在 MainLayout 内）
   themeStore.initTheme()
+
+  // Check if this is an OAuth2 callback
+  const { token, user, isNewUser, apiKey, apiKeyWarning, error: urlError } = route.query
+
+  if (urlError) {
+    error.value = decodeURIComponent(urlError)
+    return
+  }
+
+  if (token && user) {
+    try {
+      loading.value = true
+      const callbackResult = await userStore.handleGoogleCallback({
+        token,
+        user,
+        isNewUser,
+        apiKey,
+        apiKeyWarning
+      })
+
+      showToast('Login successful!', 'success')
+
+      // Show API key message for new users
+      if (callbackResult.isNewUser && callbackResult.apiKey) {
+        showToast('API key generated automatically!', 'success')
+      }
+
+      if (callbackResult.apiKeyWarning) {
+        showToast(callbackResult.apiKeyWarning, 'warning')
+      }
+
+      router.push('/user-dashboard')
+    } catch (err) {
+      console.error('OAuth2 callback error:', err)
+      error.value = err.message || 'OAuth2 callback failed'
+    } finally {
+      loading.value = false
+    }
+  }
 })
 </script>

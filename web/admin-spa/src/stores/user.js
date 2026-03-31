@@ -21,34 +21,40 @@ export const useUserStore = defineStore('user', {
   },
 
   actions: {
-    // 🔐 用户登录
-    async login(credentials) {
-      this.loading = true
+    // 🔐 Google OAuth2 登录回调处理
+    async handleGoogleCallback(params) {
+      const { token, user, isNewUser, apiKey, apiKeyWarning } = params
+
       try {
-        const response = await axios.post(`${API_BASE}/login`, credentials)
+        // Parse user data
+        const parsedUser = JSON.parse(user)
 
-        if (response.data.success) {
-          this.user = response.data.user
-          this.sessionToken = response.data.sessionToken
-          this.isAuthenticated = true
+        // Set user data
+        this.user = parsedUser
+        this.sessionToken = token
+        this.isAuthenticated = true
 
-          // 保存到 localStorage
-          localStorage.setItem('userToken', this.sessionToken)
-          localStorage.setItem('userData', JSON.stringify(this.user))
+        // 保存到 localStorage
+        localStorage.setItem('userToken', this.sessionToken)
+        localStorage.setItem('userData', JSON.stringify(this.user))
 
-          // 设置 axios 默认头部
-          this.setAuthHeader()
+        // 设置 axios 默认头部
+        this.setAuthHeader()
 
-          return response.data
-        } else {
-          throw new Error(response.data.message || 'Login failed')
+        return {
+          isNewUser: isNewUser === 'true',
+          apiKey,
+          apiKeyWarning: apiKeyWarning ? decodeURIComponent(apiKeyWarning) : null
         }
       } catch (error) {
         this.clearAuth()
-        throw error
-      } finally {
-        this.loading = false
+        throw new Error('Failed to process Google login callback')
       }
+    },
+
+    // 🔐 启动 Google 登录
+    initiateGoogleLogin() {
+      window.location.href = `${APP_CONFIG.apiPrefix}/auth/google`
     },
 
     // 🚪 用户登出

@@ -144,11 +144,11 @@ router.get('/google/callback', async (req, res) => {
       isNewUser
     })
 
-    // Build response (per D-07, D-08)
-    const response = {
-      success: true,
-      message: isNewUser ? 'Account created and logged in successfully' : 'Login successful',
-      user: {
+    // Build frontend redirect with OAuth2 data
+    const frontendBaseUrl = config.googleOAuth.frontendCallbackUrl || '/user-login'
+    const params = new URLSearchParams({
+      token: sessionToken,
+      user: JSON.stringify({
         id: user.id,
         username: user.username,
         email: user.email,
@@ -157,22 +157,22 @@ router.get('/google/callback', async (req, res) => {
         lastName: user.lastName,
         role: user.role,
         picture: profile.picture
-      },
-      sessionToken,
-      isNewUser
-    }
+      }),
+      isNewUser: String(isNewUser)
+    })
 
     // Include API key for new users (per D-08, APIKEY-04)
     if (apiKey) {
-      response.apiKey = apiKey
+      params.set('apiKey', apiKey)
     }
 
     // Include warning if API key generation failed (per D-11)
     if (apiKeyWarning) {
-      response.apiKeyWarning = apiKeyWarning
+      params.set('apiKeyWarning', apiKeyWarning)
     }
 
-    res.json(response)
+    // Redirect to frontend with OAuth2 callback data
+    res.redirect(`${frontendBaseUrl}?${params.toString()}`)
   } catch (error) {
     logger.error('Unexpected error in Google OAuth2 callback:', error)
     res.status(500).json({
