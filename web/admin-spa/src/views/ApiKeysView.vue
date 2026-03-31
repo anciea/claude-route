@@ -161,7 +161,7 @@
                       :placeholder="
                         searchMode === 'bindingAccount'
                           ? '搜索所属账号...'
-                          : isLdapEnabled
+                          : isUserManagementEnabled
                             ? '搜索名称或所有者...'
                             : '搜索名称...'
                       "
@@ -475,7 +475,7 @@
                           </div>
                           <!-- 显示所有者信息 -->
                           <div
-                            v-if="isLdapEnabled && key.ownerDisplayName"
+                            v-if="isUserManagementEnabled && key.ownerDisplayName"
                             class="mt-1 text-xs text-red-600"
                           >
                             <i class="fas fa-user mr-1" />
@@ -1402,7 +1402,10 @@
                   使用共享池
                 </div>
                 <!-- 显示所有者信息 -->
-                <div v-if="isLdapEnabled && key.ownerDisplayName" class="text-xs text-red-600">
+                <div
+                  v-if="isUserManagementEnabled && key.ownerDisplayName"
+                  class="text-xs text-red-600"
+                >
                   <i class="fas fa-user mr-1" />
                   {{ key.ownerDisplayName }}
                 </div>
@@ -1826,7 +1829,7 @@
                         所属账号
                       </th>
                       <th
-                        v-if="isLdapEnabled"
+                        v-if="isUserManagementEnabled"
                         class="min-w-[120px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                       >
                         创建者
@@ -1937,7 +1940,7 @@
                         </div>
                       </td>
                       <!-- 创建者 -->
-                      <td v-if="isLdapEnabled" class="px-3 py-3">
+                      <td v-if="isUserManagementEnabled" class="px-3 py-3">
                         <div class="text-xs">
                           <span v-if="key.createdBy === 'admin'" class="text-blue-600">
                             <i class="fas fa-user-shield mr-1 text-xs" />
@@ -2192,8 +2195,10 @@ const router = useRouter()
 const authStore = useAuthStore()
 const apiKeys = ref([])
 
-// 获取 LDAP 启用状态
-const isLdapEnabled = computed(() => authStore.oemSettings?.ldapEnabled || false)
+// 获取用户管理启用状态
+const isUserManagementEnabled = computed(
+  () => authStore.oemSettings?.userManagementEnabled || false
+)
 
 // 多选相关状态
 const selectedApiKeys = ref([])

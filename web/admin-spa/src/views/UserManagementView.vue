@@ -267,7 +267,16 @@
           <div class="flex items-center justify-between">
             <div class="flex min-w-0 flex-1 items-center">
               <div class="flex-shrink-0">
+                <!-- Google Avatar or Placeholder -->
+                <img
+                  v-if="user.avatarUrl"
+                  :src="user.avatarUrl"
+                  :alt="user.displayName"
+                  class="h-10 w-10 rounded-full object-cover"
+                  @error="handleAvatarError"
+                />
                 <div
+                  v-else
                   class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600"
                 >
                   <svg
@@ -310,6 +319,13 @@
                       ]"
                     >
                       {{ user.role }}
+                    </span>
+                    <!-- Google Auth Badge -->
+                    <span
+                      v-if="user.avatarUrl"
+                      class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                    >
+                      Google
                     </span>
                   </div>
                 </div>
@@ -562,6 +578,11 @@ const loadUsers = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleAvatarError = (event) => {
+  // Hide the image and show placeholder on error
+  event.target.style.display = 'none'
 }
 
 const debouncedSearch = debounce(() => {

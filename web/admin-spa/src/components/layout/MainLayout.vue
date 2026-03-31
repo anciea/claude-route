@@ -43,8 +43,8 @@ const tabRouteMap = computed(() => {
     settings: '/settings'
   }
 
-  // 只有在 LDAP 启用时才包含用户管理路由
-  if (authStore.oemSettings?.ldapEnabled) {
+  // 只有在用户管理启用时才包含用户管理路由
+  if (authStore.oemSettings?.userManagementEnabled) {
     baseMap.userManagement = '/user-management'
   }
 

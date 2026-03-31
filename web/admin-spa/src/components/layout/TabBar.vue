@@ -60,8 +60,8 @@ const tabs = computed(() => {
     { key: 'quotaCards', name: '额度卡', shortName: '额度卡', icon: 'fas fa-ticket-alt' }
   ]
 
-  // 只有在 LDAP 启用时才显示用户管理
-  if (authStore.oemSettings?.ldapEnabled) {
+  // 只有在用户管理启用时才显示用户管理
+  if (authStore.oemSettings?.userManagementEnabled) {
     baseTabs.push({
       key: 'userManagement',
       name: '用户管理',
