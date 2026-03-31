@@ -59,7 +59,7 @@ Plans:
 **Requirements:** [USER-01, USER-02, USER-03, USER-04, APIKEY-01, APIKEY-02, APIKEY-03, APIKEY-04, APIKEY-05]
 
 Plans:
-- [ ] 02-01-PLAN.md — Service layer: userService enhancement and googleLoginService orchestration
+- [x] 02-01-PLAN.md — Service layer: userService enhancement and googleLoginService orchestration
 - [ ] 02-02-PLAN.md — Route integration: OAuth callback wiring and full test coverage
 
 ### Requirements Covered

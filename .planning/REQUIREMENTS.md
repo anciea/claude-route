@@ -16,19 +16,19 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### User Management
 
-- [ ] **USER-01**: New user accounts are automatically created from Google profile data
-- [ ] **USER-02**: User profile uses Google ID as primary username identifier
-- [ ] **USER-03**: System stores Google email, display name, and avatar URL
-- [ ] **USER-04**: User profiles integrate with existing Redis-based user management
+- [x] **USER-01**: New user accounts are automatically created from Google profile data
+- [x] **USER-02**: User profile uses Google ID as primary username identifier
+- [x] **USER-03**: System stores Google email, display name, and avatar URL
+- [x] **USER-04**: User profiles integrate with existing Redis-based user management
 - [ ] **USER-05**: User management interface displays Google-authenticated users correctly
 
 ### API Key Generation
 
-- [ ] **APIKEY-01**: System automatically generates full-permission API key on first login
-- [ ] **APIKEY-02**: Generated API key follows existing `cr_` prefix format
-- [ ] **APIKEY-03**: API key has all service permissions enabled by default
+- [x] **APIKEY-01**: System automatically generates full-permission API key on first login
+- [x] **APIKEY-02**: Generated API key follows existing `cr_` prefix format
+- [x] **APIKEY-03**: API key has all service permissions enabled by default
 - [ ] **APIKEY-04**: User receives API key immediately in login response
-- [ ] **APIKEY-05**: API key creation integrates with existing apiKeyService
+- [x] **APIKEY-05**: API key creation integrates with existing apiKeyService
 
 ### System Integration
 
@@ -76,16 +76,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Complete |
-| USER-01 | Phase 2 | Pending |
-| USER-02 | Phase 2 | Pending |
-| USER-03 | Phase 2 | Pending |
-| USER-04 | Phase 2 | Pending |
+| USER-01 | Phase 2 | Complete |
+| USER-02 | Phase 2 | Complete |
+| USER-03 | Phase 2 | Complete |
+| USER-04 | Phase 2 | Complete |
 | USER-05 | Phase 3 | Pending |
-| APIKEY-01 | Phase 2 | Pending |
-| APIKEY-02 | Phase 2 | Pending |
-| APIKEY-03 | Phase 2 | Pending |
+| APIKEY-01 | Phase 2 | Complete |
+| APIKEY-02 | Phase 2 | Complete |
+| APIKEY-03 | Phase 2 | Complete |
 | APIKEY-04 | Phase 2 | Pending |
-| APIKEY-05 | Phase 2 | Pending |
+| APIKEY-05 | Phase 2 | Complete |
 | SYS-01 | Phase 3 | Pending |
 | SYS-02 | Phase 3 | Pending |
 | SYS-03 | Phase 3 | Pending |
