@@ -55,6 +55,12 @@ Plans:
 **Duration:** 2-3 days
 **Risk Level:** Medium
 **Dependencies:** Phase 1 complete
+**Plans:** 2 plans
+**Requirements:** [USER-01, USER-02, USER-03, USER-04, APIKEY-01, APIKEY-02, APIKEY-03, APIKEY-04, APIKEY-05]
+
+Plans:
+- [ ] 02-01-PLAN.md — Service layer: userService enhancement and googleLoginService orchestration
+- [ ] 02-02-PLAN.md — Route integration: OAuth callback wiring and full test coverage
 
 ### Requirements Covered
 - USER-01: New user accounts are automatically created from Google profile data
@@ -156,4 +162,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-30*
-*Last updated: 2026-03-30 after Phase 1 planning*
+*Last updated: 2026-03-31 after Phase 2 planning*
