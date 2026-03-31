@@ -27,7 +27,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **APIKEY-01**: System automatically generates full-permission API key on first login
 - [x] **APIKEY-02**: Generated API key follows existing `cr_` prefix format
 - [x] **APIKEY-03**: API key has all service permissions enabled by default
-- [ ] **APIKEY-04**: User receives API key immediately in login response
+- [x] **APIKEY-04**: User receives API key immediately in login response
 - [x] **APIKEY-05**: API key creation integrates with existing apiKeyService
 
 ### System Integration
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | APIKEY-01 | Phase 2 | Complete |
 | APIKEY-02 | Phase 2 | Complete |
 | APIKEY-03 | Phase 2 | Complete |
-| APIKEY-04 | Phase 2 | Pending |
+| APIKEY-04 | Phase 2 | Complete |
 | APIKEY-05 | Phase 2 | Complete |
 | SYS-01 | Phase 3 | Pending |
 | SYS-02 | Phase 3 | Pending |

@@ -60,7 +60,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Service layer: userService enhancement and googleLoginService orchestration
-- [ ] 02-02-PLAN.md — Route integration: OAuth callback wiring and full test coverage
+- [x] 02-02-PLAN.md — Route integration: OAuth callback wiring and full test coverage
 
 ### Requirements Covered
 - USER-01: New user accounts are automatically created from Google profile data
