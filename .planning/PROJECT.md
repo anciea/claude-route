@@ -8,6 +8,18 @@ Adding Google Cloud Vertex AI as a new account type to the Claude Relay Service,
 
 Clients can access Claude models through Google Cloud Vertex AI infrastructure using the same unified API and account management experience as other AI providers, with enterprise-grade authentication and billing through Google Cloud.
 
+## Current Milestone: v2.0 Google Cloud Vertex AI Integration
+
+**Goal:** Add Google Cloud Vertex AI as a new account type with full feature parity and enterprise integration
+
+**Target features:**
+- Vertex AI account type with Service Account JSON authentication
+- Support for Claude 4.6 series models (Opus 4.6, Sonnet 4.6, Haiku 4.5)
+- Streaming response support with real-time usage capture
+- Complete integration with existing scheduling and session management
+- Admin interface for Vertex AI account management
+- Unified Claude API format (not native Vertex AI format)
+
 ## Requirements
 
 ### Validated
@@ -104,7 +116,7 @@ Clients can access Claude models through Google Cloud Vertex AI infrastructure u
 
 ---
 
-_Last updated: 2026-04-01 after project initialization_
+_Last updated: 2026-04-01 after milestone v2.0 initialization_
 
 ## Evolution
 

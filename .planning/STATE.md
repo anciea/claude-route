@@ -1,76 +1,57 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Milestone complete
-last_updated: "2026-04-01T03:30:05.946Z"
+milestone: v2.0
+milestone_name: Google Cloud Vertex AI Integration
+status: Defining requirements
+last_updated: "2026-04-01T04:00:00.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
-## Current Status
+## Current Position
 
-- **Phase**: Project Initialized
-- **Last Updated**: 2026-03-30
-- **Next Action**: `/gsd:plan-phase 1`
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-01 — Milestone v2.0 started
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-30)
+See: .planning/PROJECT.md (updated 2026-04-01)
 
-**Core value:** Users can authenticate with Google OAuth2 and immediately start using Claude Relay Service without manual API key creation or LDAP configuration.
-**Current focus:** Phase 03 — system-integration-ldap-replacement
+**Core value:** Clients can access Claude models through Google Cloud Vertex AI infrastructure using the same unified API and account management experience as other AI providers, with enterprise-grade authentication and billing through Google Cloud.
+**Current focus:** Milestone v2.0 — Google Cloud Vertex AI Integration
 
-## Progress Overview
+## Accumulated Context
 
-### Milestone 1: Google OAuth2 Integration
+### Previous Milestone: v1.0 Google OAuth2 Integration (Complete)
 
-- **Phase 1**: Not started - Google OAuth2 Backend Foundation
-- **Phase 2**: Not started - User Management & API Key Automation
-- **Phase 3**: Not started - System Integration & LDAP Replacement
+- ✓ Google OAuth2 authentication completely replaced LDAP system
+- ✓ Automatic API key generation for new users
+- ✓ User management with Google profiles and avatars
+- ✓ Backward compatibility maintained during transition
+- ✓ Complete system integration and validation
 
-**Overall Progress**: 0% (0/3 phases complete)
+### Current Milestone: v2.0 Vertex AI Integration
 
-## Key Context
+**Target Architecture:**
+- New 'vertex' account type in existing multi-provider system
+- Service Account JSON authentication with AES encryption
+- Support for Claude 4.6 series models (opus-4-6, sonnet-4-6, haiku-4-5)
+- Complete integration with existing scheduling and session management
+- Unified Claude API format (not native Vertex AI format)
 
-### User Requirements Summary
-
-- **Authentication Method**: Complete replacement of LDAP with Google OAuth2
-- **Token Assignment**: Automatic generation of full-permission API keys after login
-- **User Profile**: Google ID as username, store email and basic profile data
-- **Integration Approach**: Clean replacement, no LDAP retention
-
-### Technical Context
-
-- **Existing System**: LDAP authentication with manual API key creation
-- **Current Token Format**: `cr_` prefix API keys with detailed permission system
-- **Architecture**: Express.js with Redis storage, Clean Architecture patterns
-- **OAuth2 Infrastructure**: Existing OAuth helper utilities available
-
-### Implementation Decisions
-
-- Use Google ID as primary username identifier
-- Auto-generate API keys with full service permissions
-- Maintain existing `cr_` prefix format and permission system
-- Complete LDAP removal in final phase
-
-## Phase Dependencies
-
-- Phase 1: Google OAuth2 foundation (no dependencies)
-- Phase 2: Requires Phase 1 completion (authentication flow)
-- Phase 3: Requires Phase 1-2 completion (user management and API keys)
-
-## Risk Tracking
-
-- **High Risk**: Phase 3 LDAP removal could break existing functionality
-- **Medium Risk**: OAuth2 token lifecycle integration with existing sessions
-- **Low Risk**: API key generation integration with existing service
+**Integration Points:**
+- Leverage existing account management infrastructure
+- Integrate with current sticky session and concurrent request control
+- Maintain Clean Architecture patterns and service separation
+- Use existing streaming response and usage tracking systems
 
 ---
 
-*State updated: 2026-03-30 after project initialization*
+*State updated: 2026-04-01 after milestone v2.0 initialization*
