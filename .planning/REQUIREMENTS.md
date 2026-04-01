@@ -115,36 +115,36 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACCOUNT-01 | TBD | Pending |
-| ACCOUNT-02 | TBD | Pending |
-| ACCOUNT-03 | TBD | Pending |
-| ACCOUNT-04 | TBD | Pending |
-| ACCOUNT-05 | TBD | Pending |
-| ACCOUNT-06 | TBD | Pending |
-| ACCOUNT-07 | TBD | Pending |
-| MODELS-01 | TBD | Pending |
-| MODELS-02 | TBD | Pending |
-| MODELS-03 | TBD | Pending |
-| MODELS-04 | TBD | Pending |
-| INTEGRATION-01 | TBD | Pending |
-| INTEGRATION-02 | TBD | Pending |
-| INTEGRATION-03 | TBD | Pending |
-| INTEGRATION-04 | TBD | Pending |
-| INTEGRATION-05 | TBD | Pending |
-| INTEGRATION-06 | TBD | Pending |
-| INTEGRATION-07 | TBD | Pending |
-| FEATURES-01 | TBD | Pending |
-| FEATURES-02 | TBD | Pending |
-| FEATURES-03 | TBD | Pending |
-| FEATURES-04 | TBD | Pending |
-| FEATURES-05 | TBD | Pending |
-| FEATURES-06 | TBD | Pending |
+| ACCOUNT-01 | Phase 4 | Pending |
+| ACCOUNT-02 | Phase 4 | Pending |
+| ACCOUNT-03 | Phase 4 | Pending |
+| ACCOUNT-04 | Phase 4 | Pending |
+| ACCOUNT-05 | Phase 4 | Pending |
+| ACCOUNT-06 | Phase 4 | Pending |
+| ACCOUNT-07 | Phase 4 | Pending |
+| MODELS-01 | Phase 5 | Pending |
+| MODELS-02 | Phase 5 | Pending |
+| MODELS-03 | Phase 5 | Pending |
+| MODELS-04 | Phase 5 | Pending |
+| INTEGRATION-01 | Phase 5 | Pending |
+| INTEGRATION-02 | Phase 5 | Pending |
+| INTEGRATION-03 | Phase 5 | Pending |
+| INTEGRATION-04 | Phase 5 | Pending |
+| INTEGRATION-05 | Phase 5 | Pending |
+| INTEGRATION-06 | Phase 5 | Pending |
+| INTEGRATION-07 | Phase 5 | Pending |
+| FEATURES-01 | Phase 6 | Pending |
+| FEATURES-02 | Phase 6 | Pending |
+| FEATURES-03 | Phase 6 | Pending |
+| FEATURES-04 | Phase 6 | Pending |
+| FEATURES-05 | Phase 6 | Pending |
+| FEATURES-06 | Phase 6 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25 ⚠️
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after v2.0 milestone definition*
+*Last updated: 2026-04-01 after roadmap creation*

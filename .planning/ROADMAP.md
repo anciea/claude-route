@@ -1,142 +1,88 @@
-# Roadmap: Google OAuth2 Authentication Integration
+# Roadmap: Google Cloud Vertex AI Integration
 
-**Created:** 2026-03-30
-**Core Value:** Users can authenticate with Google OAuth2 and immediately start using Claude Relay Service without manual API key creation or LDAP configuration.
+**Created:** 2026-04-01
+**Core Value:** Clients can access Claude models through Google Cloud Vertex AI infrastructure using the same unified API and account management experience as other AI providers, with enterprise-grade authentication and billing through Google Cloud.
 
-## Milestone 1: Google OAuth2 Integration
+## Milestone 2: Google Cloud Vertex AI Integration
 
-**Target:** Complete replacement of LDAP with Google OAuth2 authentication
+**Target:** Add Vertex AI as a new account type with full feature parity and enterprise integration
 **Duration:** 3 phases
-**Success Criteria:** Users can log in with Google and receive API keys automatically
+**Success Criteria:** Users can access Claude 4.6 models through Vertex AI with unified API format
+
+## Previous Milestone: Google OAuth2 Integration (Complete)
+
+- [x] **Phase 1: Google OAuth2 Backend Foundation** - Implement OAuth2 authentication flow and callback handling
+- [x] **Phase 2: User Management & API Key Automation** - Create users from Google profiles and auto-generate API keys
+- [x] **Phase 3: System Integration & LDAP Replacement** - Replace LDAP system completely and update user interfaces
 
 ---
 
-## Phase 1: Google OAuth2 Backend Foundation
+## Phases
 
-**Goal:** Implement Google OAuth2 authentication flow and callback handling
-
-**Duration:** 2-3 days
-**Risk Level:** Medium
-**Dependencies:** None
-**Plans:** 3 plans
-**Requirements:** [AUTH-01, AUTH-02, AUTH-03, AUTH-04, SYS-05]
-
-Plans:
-- [x] 01-01-PLAN.md — Google OAuth2 configuration and core service module
-- [x] 01-02-PLAN.md — OAuth2 authentication routes and app wiring
-- [x] 01-03-PLAN.md — Authentication middleware enhancement and integration verification
-
-### Requirements Covered
-- AUTH-01: User can initiate Google OAuth2 login flow from web interface
-- AUTH-02: System exchanges OAuth2 authorization code for user profile data
-- AUTH-03: System validates Google OAuth2 tokens and user permissions
-- AUTH-04: Authentication middleware supports Google OAuth2 tokens
-- SYS-05: Backend routes handle Google OAuth2 callback processing
-
-### Key Deliverables
-- Google OAuth2 configuration setup
-- OAuth2 authentication routes (`/auth/google`, `/auth/google/callback`)
-- Google OAuth2 service module
-- Updated authentication middleware
-- Token validation and user profile extraction
-
-### Success Criteria
-- Google OAuth2 flow completes successfully
-- User profile data is extracted from Google
-- Authentication middleware validates OAuth2 tokens
-- Error handling for OAuth2 failures
+- [ ] **Phase 4: Vertex AI Account Foundation** - Enable Vertex AI account creation with service account authentication
+- [ ] **Phase 5: Model Support & Core Integration** - Add Claude 4.6 model support and API conversion layer
+- [ ] **Phase 6: Advanced Features & Admin Interface** - Complete streaming support, usage tracking, and admin UI
 
 ---
 
-## Phase 2: User Management & API Key Automation
+## Phase Details
 
-**Goal:** Create users from Google profiles and auto-generate API keys
+### Phase 4: Vertex AI Account Foundation
+**Goal**: Admins can create and manage Vertex AI accounts with secure service account authentication
+**Depends on**: Phase 3
+**Requirements**: ACCOUNT-01, ACCOUNT-02, ACCOUNT-03, ACCOUNT-04, ACCOUNT-05, ACCOUNT-06, ACCOUNT-07
+**Success Criteria** (what must be TRUE):
+  1. Admin can create new Vertex AI account in management interface
+  2. Admin can upload and configure Service Account JSON credentials securely
+  3. System validates Service Account JSON and generates working Google Cloud access tokens
+  4. Vertex AI accounts appear in account management with proper status indicators
+**Plans**: TBD
 
-**Duration:** 2-3 days
-**Risk Level:** Medium
-**Dependencies:** Phase 1 complete
-**Plans:** 2 plans
-**Requirements:** [USER-01, USER-02, USER-03, USER-04, APIKEY-01, APIKEY-02, APIKEY-03, APIKEY-04, APIKEY-05]
+### Phase 5: Model Support & Core Integration
+**Goal**: Vertex AI accounts can serve Claude 4.6 model requests through unified API format
+**Depends on**: Phase 4
+**Requirements**: MODELS-01, MODELS-02, MODELS-03, MODELS-04, INTEGRATION-01, INTEGRATION-02, INTEGRATION-03, INTEGRATION-04, INTEGRATION-05, INTEGRATION-06, INTEGRATION-07
+**Success Criteria** (what must be TRUE):
+  1. Clients can request Claude 4.6 Opus and Sonnet models via unified Claude API format
+  2. Vertex AI accounts integrate seamlessly with existing sticky session and scheduling system
+  3. System converts Claude API requests to Vertex AI format and handles authentication errors gracefully
+  4. Concurrent request control and queueing work correctly for Vertex AI accounts
+**Plans**: TBD
 
-Plans:
-- [x] 02-01-PLAN.md — Service layer: userService enhancement and googleLoginService orchestration
-- [x] 02-02-PLAN.md — Route integration: OAuth callback wiring and full test coverage
-
-### Requirements Covered
-- USER-01: New user accounts are automatically created from Google profile data
-- USER-02: User profile uses Google ID as primary username identifier
-- USER-03: System stores Google email, display name, and avatar URL
-- USER-04: User profiles integrate with existing Redis-based user management
-- APIKEY-01: System automatically generates full-permission API key on first login
-- APIKEY-02: Generated API key follows existing `cr_` prefix format
-- APIKEY-03: API key has all service permissions enabled by default
-- APIKEY-04: User receives API key immediately in login response
-- APIKEY-05: API key creation integrates with existing apiKeyService
-
-### Key Deliverables
-- Google user profile to internal user mapping
-- Automatic user creation on first OAuth2 login
-- API key auto-generation service
-- User profile storage with Google data
-- Login response including API key
-
-### Success Criteria
-- New users created automatically from Google profiles
-- API keys generated with full permissions
-- User data properly stored in Redis
-- Complete authentication response with API key
+### Phase 6: Advanced Features & Admin Interface
+**Goal**: Vertex AI integration has complete feature parity including streaming, usage tracking, and admin monitoring
+**Depends on**: Phase 5
+**Requirements**: FEATURES-01, FEATURES-02, FEATURES-03, FEATURES-04, FEATURES-05, FEATURES-06
+**Success Criteria** (what must be TRUE):
+  1. Streaming responses work correctly for Vertex AI Claude models with real-time token capture
+  2. Usage statistics and cost calculations are accurate for Vertex AI requests
+  3. Admin interface displays comprehensive Vertex AI account health and usage metrics
+  4. Vertex AI usage integrates properly with existing statistics and reporting systems
+**Plans**: TBD
 
 ---
 
-## Phase 3: System Integration & LDAP Replacement
+## Progress Table
 
-**Goal:** Replace LDAP system completely and update user interfaces
-
-**Duration:** 2-3 days
-**Risk Level:** High
-**Dependencies:** Phase 1-2 complete
-**Plans:** 3 plans
-**Requirements:** [USER-05, SYS-01, SYS-02, SYS-03, SYS-04]
-
-Plans:
-- [x] 03-01-PLAN.md — Backend LDAP removal: delete ldapService, remove LDAP routes, update auth middleware and OEM settings
-- [x] 03-02-PLAN.md — Frontend update: Google OAuth2 login redirect, ldapEnabled to googleOAuthEnabled migration, user management UI enhancement
-- [x] 03-03-PLAN.md — Integration testing, build verification, and human end-to-end validation
-
-### Requirements Covered
-- USER-05: User management interface displays Google-authenticated users correctly
-- SYS-01: Google OAuth2 completely replaces LDAP authentication endpoints
-- SYS-02: Session management works with Google OAuth2 authentication
-- SYS-03: Existing API key validation and middleware remain functional
-- SYS-04: User interface login flow redirects to Google OAuth2
-
-### Key Deliverables
-- Remove LDAP authentication routes
-- Update frontend login interface
-- Update user management UI for Google users
-- Session management with OAuth2 tokens
-- Complete system testing and validation
-
-### Success Criteria
-- LDAP authentication endpoints removed
-- Frontend redirects to Google OAuth2
-- User management displays Google user data
-- Existing API keys continue working
-- Full end-to-end authentication flow functional
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 4. Vertex AI Account Foundation | 0/TBD | Not started | - |
+| 5. Model Support & Core Integration | 0/TBD | Not started | - |
+| 6. Advanced Features & Admin Interface | 0/TBD | Not started | - |
 
 ---
 
 ## Risk Assessment
 
 ### High-Risk Areas
-- **Phase 3**: Complete LDAP removal could break existing functionality
-- **Session Management**: OAuth2 token lifecycle vs current session approach
-- **User Data Migration**: Existing users during transition period
+- **Phase 4**: Google Cloud service account authentication complexity
+- **Phase 5**: API format conversion between Claude and Vertex AI formats
+- **Phase 6**: Streaming response format differences and token capture accuracy
 
 ### Mitigation Strategies
-- Comprehensive testing at each phase
-- Backup of existing authentication before removal
-- Feature flags for gradual rollout if needed
+- Leverage existing multi-provider architecture patterns
+- Comprehensive testing with real Vertex AI endpoints
+- Incremental integration with existing systems
 - Rollback plan for each phase
 
 ---
@@ -144,29 +90,18 @@ Plans:
 ## Success Metrics
 
 ### Technical Metrics
-- Google OAuth2 authentication success rate > 98%
-- API key generation time < 2 seconds
-- User profile creation success rate 100%
-- Existing API key functionality preserved
+- Vertex AI account creation success rate > 95%
+- API format conversion accuracy 100%
+- Streaming response delivery time comparable to other providers
+- Usage tracking accuracy within 1% of Vertex AI reported usage
 
 ### User Experience Metrics
-- Single-click Google login flow
-- Immediate API key availability
-- Zero manual configuration required
-- Consistent user interface experience
+- Unified API experience identical to other Claude providers
+- Account management workflow consistent with existing providers
+- Error messages clear and actionable for Google Cloud issues
+- Admin interface provides sufficient Vertex AI-specific monitoring
 
 ---
 
-## Post-Milestone 1
-
-### Future Enhancements (Milestone 2+)
-- Google Workspace domain restrictions
-- Enhanced API key configuration options
-- User profile synchronization
-- Administrative OAuth2 controls
-- Migration tools for existing LDAP deployments
-
----
-
-*Roadmap created: 2026-03-30*
-*Last updated: 2026-03-31 after Phase 3 planning*
+*Roadmap created: 2026-04-01*
+*Last updated: 2026-04-01 after v2.0 milestone initialization*
