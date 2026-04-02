@@ -3,8 +3,10 @@ const claudeRelayService = require('../services/relay/claudeRelayService')
 const claudeConsoleRelayService = require('../services/relay/claudeConsoleRelayService')
 const bedrockRelayService = require('../services/relay/bedrockRelayService')
 const ccrRelayService = require('../services/relay/ccrRelayService')
+const vertexRelayService = require('../services/relay/vertexRelayService')
 const bedrockAccountService = require('../services/account/bedrockAccountService')
 const unifiedClaudeScheduler = require('../services/scheduler/unifiedClaudeScheduler')
+const unifiedVertexScheduler = require('../services/scheduler/unifiedVertexScheduler')
 const apiKeyService = require('../services/apiKeyService')
 const { authenticateApiKey } = require('../middleware/auth')
 const logger = require('../utils/logger')
@@ -341,40 +343,71 @@ async function handleMessagesRequest(req, res) {
       const requestedModel = req.body.model
       let accountId
       let accountType
+
+      // 🎯 Try Vertex AI accounts first if API key has vertex bindings
       try {
-        const selection = await unifiedClaudeScheduler.selectAccountForApiKey(
-          req.apiKey,
-          sessionHash,
-          requestedModel,
-          forcedAccount
+        if (req.apiKey.vertexAccountId) {
+          try {
+            const vertexSelection = await unifiedVertexScheduler.selectAccountForApiKey(
+              req.apiKey,
+              sessionHash,
+              requestedModel,
+              forcedAccount
+            )
+            ;({ accountId, accountType } = vertexSelection)
+            logger.info(`🎯 Selected Vertex AI account: ${accountId}`)
+          } catch (vertexError) {
+            logger.debug(
+              'Vertex AI scheduler failed, falling back to Claude scheduler:',
+              vertexError.message
+            )
+            // Fall through to Claude scheduler
+          }
+        }
+      } catch (vertexCheckError) {
+        logger.debug(
+          'Error checking Vertex AI availability, falling back to Claude scheduler:',
+          vertexCheckError.message
         )
-        ;({ accountId, accountType } = selection)
-      } catch (error) {
-        // 处理会话绑定账户不可用的错误
-        if (error.code === 'SESSION_BINDING_ACCOUNT_UNAVAILABLE') {
-          const errorMessage = await claudeRelayConfigService.getSessionBindingErrorMessage()
-          return res.status(403).json({
-            error: {
-              type: 'session_binding_error',
-              message: errorMessage
-            }
-          })
-        }
-        if (error.code === 'CLAUDE_DEDICATED_RATE_LIMITED') {
-          const limitMessage = claudeRelayService._buildStandardRateLimitMessage(
-            error.rateLimitEndAt
+      }
+
+      // 🔄 Fall back to Claude scheduler if no vertex account selected
+      if (!accountId) {
+        try {
+          const selection = await unifiedClaudeScheduler.selectAccountForApiKey(
+            req.apiKey,
+            sessionHash,
+            requestedModel,
+            forcedAccount
           )
-          res.status(403)
-          res.setHeader('Content-Type', 'application/json')
-          res.end(
-            JSON.stringify({
-              error: 'upstream_rate_limited',
-              message: limitMessage
+          ;({ accountId, accountType } = selection)
+        } catch (error) {
+          // 处理会话绑定账户不可用的错误
+          if (error.code === 'SESSION_BINDING_ACCOUNT_UNAVAILABLE') {
+            const errorMessage = await claudeRelayConfigService.getSessionBindingErrorMessage()
+            return res.status(403).json({
+              error: {
+                type: 'session_binding_error',
+                message: errorMessage
+              }
             })
-          )
-          return
+          }
+          if (error.code === 'CLAUDE_DEDICATED_RATE_LIMITED') {
+            const limitMessage = claudeRelayService._buildStandardRateLimitMessage(
+              error.rateLimitEndAt
+            )
+            res.status(403)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(
+              JSON.stringify({
+                error: 'upstream_rate_limited',
+                message: limitMessage
+              })
+            )
+            return
+          }
+          throw error
         }
-        throw error
       }
 
       // 🔗 在成功调度后建立会话绑定（仅 claude-official 类型）
@@ -885,6 +918,113 @@ async function handleMessagesRequest(req, res) {
           },
           accountId
         )
+      } else if (accountType === 'vertex-ai') {
+        // Vertex AI账号使用Vertex转发服务（需要传递accountId）
+        // 🧹 内存优化：提取需要的值
+        const _apiKeyIdVertex = req.apiKey.id
+        const _rateLimitInfoVertex = req.rateLimitInfo
+        const _requestBodyVertex = req.body
+        const _apiKeyVertex = req.apiKey
+        const _headersVertex = req.headers
+
+        await vertexRelayService.sendVertexRequest({
+          messages: _requestBodyVertex.messages,
+          model: _requestBodyVertex.model,
+          temperature: _requestBodyVertex.temperature,
+          maxTokens: _requestBodyVertex.max_tokens,
+          stream: true,
+          accessToken: null, // Will be retrieved from account
+          proxy: null, // Will be retrieved from config
+          apiKeyId: _apiKeyIdVertex,
+          signal: req.signal,
+          projectId: null, // Will be retrieved from account
+          location: null, // Will be retrieved from account
+          accountId,
+          res,
+          usageCallback: (usageData) => {
+            // Vertex AI streaming usage callback
+            if (
+              usageData &&
+              usageData.input_tokens !== undefined &&
+              usageData.output_tokens !== undefined
+            ) {
+              const inputTokens = usageData.input_tokens || 0
+              const outputTokens = usageData.output_tokens || 0
+              const cacheCreateTokens = usageData.cache_creation_input_tokens || 0
+              const cacheReadTokens = usageData.cache_read_input_tokens || 0
+              const model = usageData.model || 'unknown'
+
+              // 记录真实的token使用量（包含模型信息和所有4种token以及账户ID）
+              const usageAccountId = usageData.accountId
+
+              // 构建 usage 对象以传递给 recordUsage
+              const usageObject = {
+                input_tokens: inputTokens,
+                output_tokens: outputTokens,
+                cache_creation_input_tokens: cacheCreateTokens,
+                cache_read_input_tokens: cacheReadTokens
+              }
+              const requestBetaHeader =
+                _headersVertex['anthropic-beta'] ||
+                _headersVertex['Anthropic-Beta'] ||
+                _headersVertex['ANTHROPIC-BETA']
+              if (requestBetaHeader) {
+                usageObject.request_anthropic_beta = requestBetaHeader
+              }
+
+              apiKeyService
+                .recordUsageWithDetails(
+                  _apiKeyIdVertex,
+                  usageObject,
+                  model,
+                  usageAccountId,
+                  'vertex-ai'
+                )
+                .then((costs) => {
+                  queueRateLimitUpdate(
+                    _rateLimitInfoVertex,
+                    {
+                      inputTokens,
+                      outputTokens,
+                      cacheCreateTokens,
+                      cacheReadTokens
+                    },
+                    model,
+                    'vertex-ai-stream',
+                    _apiKeyIdVertex,
+                    'vertex-ai',
+                    costs
+                  )
+                })
+                .catch((error) => {
+                  logger.error('❌ Failed to record Vertex AI stream usage:', error)
+                  queueRateLimitUpdate(
+                    _rateLimitInfoVertex,
+                    {
+                      inputTokens,
+                      outputTokens,
+                      cacheCreateTokens,
+                      cacheReadTokens
+                    },
+                    model,
+                    'vertex-ai-stream',
+                    _apiKeyIdVertex,
+                    'vertex-ai'
+                  )
+                })
+
+              usageDataCaptured = true
+              logger.api(
+                `📊 Vertex AI stream usage recorded (real) - Model: ${model}, Input: ${inputTokens}, Output: ${outputTokens}, Cache Create: ${cacheCreateTokens}, Cache Read: ${cacheReadTokens}, Total: ${inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens} tokens`
+              )
+            } else {
+              logger.warn(
+                '⚠️ Vertex AI usage callback triggered but data is incomplete:',
+                JSON.stringify(usageData)
+              )
+            }
+          }
+        })
       }
 
       // 流式请求完成后 - 如果没有捕获到usage数据，记录警告但不进行估算
@@ -1164,6 +1304,30 @@ async function handleMessagesRequest(req, res) {
           _headersNonStream,
           accountId
         )
+      } else if (accountType === 'vertex-ai') {
+        // Vertex AI账号使用Vertex转发服务
+        logger.debug(
+          `[DEBUG] Calling vertexRelayService.sendVertexRequest with accountId: ${accountId}`
+        )
+        const vertexResult = await vertexRelayService.sendVertexRequest({
+          messages: _requestBodyNonStream.messages,
+          model: _requestBodyNonStream.model,
+          temperature: _requestBodyNonStream.temperature,
+          maxTokens: _requestBodyNonStream.max_tokens,
+          stream: false,
+          proxy: null, // Will be retrieved from config
+          apiKeyId: _apiKeyNonStream.id,
+          signal: req.signal,
+          accountId
+        })
+
+        // Convert result to standard response format
+        response = {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vertexResult),
+          accountId
+        }
       }
 
       logger.info('📡 Claude API response received', {
@@ -1716,6 +1880,18 @@ router.post('/v1/messages/count_tokens', authenticateApiKey, async (req, res) =>
           error: {
             type: 'not_supported',
             message: 'Token counting is not supported for Bedrock accounts'
+          }
+        }
+      })
+    }
+
+    if (accountType === 'vertex-ai') {
+      throw Object.assign(new Error('Token counting is not supported for Vertex AI accounts'), {
+        httpStatus: 501,
+        errorPayload: {
+          error: {
+            type: 'not_supported',
+            message: 'Token counting is not supported for Vertex AI accounts'
           }
         }
       })
