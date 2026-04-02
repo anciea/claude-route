@@ -210,6 +210,16 @@ export const createCcrAccountApi = (data) =>
 export const updateCcrAccountApi = (id, data) =>
   request({ url: `/admin/ccr-accounts/${id}`, method: 'PUT', data })
 
+// Vertex AI 账户
+export const getVertexAiAccountsApi = () =>
+  request({ url: '/admin/vertex-ai-accounts', method: 'GET' })
+export const createVertexAiAccountApi = (data) =>
+  request({ url: '/admin/vertex-ai-accounts', method: 'POST', data })
+export const updateVertexAiAccountApi = (id, data) =>
+  request({ url: `/admin/vertex-ai-accounts/${id}`, method: 'PUT', data })
+export const testVertexAiAccountApi = (id) =>
+  request({ url: `/admin/vertex-ai-accounts/${id}/test`, method: 'POST' })
+
 // 账户通用操作
 export const toggleAccountStatusApi = (endpoint) => request({ url: endpoint, method: 'PUT' })
 export const deleteAccountByEndpointApi = (endpoint) => request({ url: endpoint, method: 'DELETE' })

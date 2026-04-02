@@ -15,7 +15,8 @@ const PLATFORM_CONFIG = {
     endpoint: 'openai-responses-accounts',
     stateKey: 'openaiResponsesAccounts'
   },
-  droid: { endpoint: 'droid-accounts', stateKey: 'droidAccounts' }
+  droid: { endpoint: 'droid-accounts', stateKey: 'droidAccounts' },
+  vertex_ai: { endpoint: 'vertex-ai-accounts', stateKey: 'vertexAiAccounts' }
 }
 
 export const useAccountsStore = defineStore('accounts', () => {
@@ -27,6 +28,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   const azureOpenaiAccounts = ref([])
   const openaiResponsesAccounts = ref([])
   const droidAccounts = ref([])
+  const vertexAiAccounts = ref([])
   const loading = ref(false)
   const error = ref(null)
   const sortBy = ref('')
@@ -41,7 +43,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     openaiAccounts,
     azureOpenaiAccounts,
     openaiResponsesAccounts,
-    droidAccounts
+    droidAccounts,
+    vertexAiAccounts
   }
 
   // 通用获取账户
@@ -75,6 +78,8 @@ export const useAccountsStore = defineStore('accounts', () => {
   const fetchOpenAIResponsesAccounts = () =>
     fetchAccounts(httpApis.getOpenAIResponsesAccountsApi, openaiResponsesAccounts)
   const fetchDroidAccounts = () => fetchAccounts(httpApis.getDroidAccountsApi, droidAccounts)
+  const fetchVertexAiAccounts = () =>
+    fetchAccounts(httpApis.getVertexAiAccountsApi, vertexAiAccounts)
 
   const fetchAllAccounts = async () => {
     loading.value = true
@@ -86,7 +91,8 @@ export const useAccountsStore = defineStore('accounts', () => {
       fetchOpenAIAccounts(),
       fetchAzureOpenAIAccounts(),
       fetchOpenAIResponsesAccounts(),
-      fetchDroidAccounts()
+      fetchDroidAccounts(),
+      fetchVertexAiAccounts()
     ])
     loading.value = false
   }
@@ -110,6 +116,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     mutateAccount(httpApis.createOpenAIResponsesAccountApi, fetchOpenAIResponsesAccounts, data)
   const createGeminiApiAccount = (data) =>
     mutateAccount(httpApis.createGeminiApiAccountApi, fetchGeminiAccounts, data)
+  const createVertexAiAccount = (data) =>
+    mutateAccount(httpApis.createVertexAiAccountApi, fetchVertexAiAccounts, data)
 
   // 更新账户
   const updateClaudeAccount = (id, data) =>
@@ -130,6 +138,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     mutateAccount(httpApis.updateGeminiApiAccountApi, fetchGeminiAccounts, id, data)
   const updateDroidAccount = (id, data) =>
     mutateAccount(httpApis.updateDroidAccountApi, fetchDroidAccounts, id, data)
+  const updateVertexAiAccount = (id, data) =>
+    mutateAccount(httpApis.updateVertexAiAccountApi, fetchVertexAiAccounts, id, data)
 
   // 切换账户状态
   const toggleAccount = async (platform, id) => {
@@ -164,7 +174,8 @@ export const useAccountsStore = defineStore('accounts', () => {
         openai: fetchOpenAIAccounts,
         azure_openai: fetchAzureOpenAIAccounts,
         'openai-responses': fetchOpenAIResponsesAccounts,
-        droid: fetchDroidAccounts
+        droid: fetchDroidAccounts,
+        vertex_ai: fetchVertexAiAccounts
       }
       await fetchMap[platform]()
     } else {
@@ -271,6 +282,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     azureOpenaiAccounts.value = []
     openaiResponsesAccounts.value = []
     droidAccounts.value = []
+    vertexAiAccounts.value = []
     loading.value = false
     error.value = null
     sortBy.value = ''
@@ -286,6 +298,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     azureOpenaiAccounts,
     openaiResponsesAccounts,
     droidAccounts,
+    vertexAiAccounts,
     loading,
     error,
     sortBy,
@@ -298,6 +311,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     fetchAzureOpenAIAccounts,
     fetchOpenAIResponsesAccounts,
     fetchDroidAccounts,
+    fetchVertexAiAccounts,
     fetchAllAccounts,
     createClaudeAccount,
     createClaudeConsoleAccount,
@@ -309,6 +323,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     createAzureOpenAIAccount,
     createOpenAIResponsesAccount,
     createGeminiApiAccount,
+    createVertexAiAccount,
     updateClaudeAccount,
     updateClaudeConsoleAccount,
     updateBedrockAccount,
@@ -317,6 +332,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     updateAzureOpenAIAccount,
     updateOpenAIResponsesAccount,
     updateGeminiApiAccount,
+    updateVertexAiAccount,
     toggleAccount,
     deleteAccount,
     refreshClaudeToken,
