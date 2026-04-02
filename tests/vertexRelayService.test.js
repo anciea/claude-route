@@ -14,12 +14,7 @@ const apiKeyService = require('../src/services/apiKeyService')
 const vertexAiAccountService = require('../src/services/account/vertexAiAccountService')
 
 // Mock axios
-const mockAxios = {
-  request: jest.fn(),
-  post: jest.fn(),
-  get: jest.fn()
-}
-jest.doMock('axios', () => mockAxios)
+jest.mock('axios')
 const axios = require('axios')
 
 describe('vertexRelayService', () => {
@@ -414,6 +409,257 @@ describe('vertexRelayService', () => {
         'Line:',
         '{invalid json}'
       )
+    })
+  })
+
+  describe('sendVertexRequest', () => {
+    beforeEach(() => {
+      // Reset axios mock
+      axios.mockClear()
+
+      // Mock account service responses
+      vertexAiAccountService.getAccount = jest.fn().mockResolvedValue({
+        id: 'test-account-id',
+        projectId: 'test-project',
+        location: 'us-central1',
+        serviceAccountJson: {}
+      })
+
+      vertexAiAccountService.getAccessToken = jest.fn().mockResolvedValue({
+        accessToken: 'mock-access-token',
+        expiresAt: new Date(Date.now() + 3600000)
+      })
+    })
+
+    test('should send non-streaming request to Vertex AI Partner Model API', async () => {
+      const mockVertexResponse = {
+        content: [{ text: 'Hello from Vertex AI!' }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 5, output_tokens: 4 }
+      }
+
+      axios.mockResolvedValue({
+        data: mockVertexResponse
+      })
+
+      const messages = [{ role: 'user', content: 'Hello!' }]
+      const result = await vertexRelayService.sendVertexRequest({
+        messages,
+        model: 'claude-opus-4-6',
+        temperature: 0.7,
+        maxTokens: 1024,
+        stream: false,
+        apiKeyId: 'test-api-key',
+        accountId: 'test-account'
+      })
+
+      expect(vertexAiAccountService.getAccount).toHaveBeenCalledWith('test-account', true)
+      expect(vertexAiAccountService.getAccessToken).toHaveBeenCalledWith('test-account-id')
+      expect(axios).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+          url: 'https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/anthropic/models/claude-3-opus@20240229:rawPredict',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer mock-access-token',
+            'Content-Type': 'application/json'
+          }),
+          data: expect.objectContaining({
+            anthropic_version: 'vertex-2023-10-16',
+            messages: [{ role: 'user', content: 'Hello!' }]
+          })
+        })
+      )
+
+      expect(result).toEqual(expect.objectContaining({
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello from Vertex AI!' }],
+        model: 'claude-opus-4-6'
+      }))
+
+      expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
+        'test-api-key',
+        5, 4, 0, 0,
+        'claude-opus-4-6',
+        'test-account',
+        'vertex-ai'
+      )
+    })
+
+    test('should handle streaming requests', async () => {
+      const mockStreamData = ['data: {"content":[{"text":"Hello"}]}\n']
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          for (const data of mockStreamData) {
+            yield Buffer.from(data)
+          }
+        }
+      }
+
+      axios.mockResolvedValue({
+        data: mockStream
+      })
+
+      const messages = [{ role: 'user', content: 'Hello!' }]
+      const result = await vertexRelayService.sendVertexRequest({
+        messages,
+        model: 'claude-sonnet-4-6',
+        stream: true,
+        apiKeyId: 'test-api-key',
+        accountId: 'test-account'
+      })
+
+      expect(axios).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining('streamRawPredict'),
+          responseType: 'stream'
+        })
+      )
+
+      // Should return async generator
+      expect(result).toBeDefined()
+      expect(typeof result.next).toBe('function')
+    })
+
+    test('should handle authentication errors with exponential backoff', async () => {
+      const authError = new Error('Auth failed')
+      authError.response = { status: 401, data: { error: { message: 'Invalid token' } } }
+
+      const successResponse = {
+        data: {
+          content: [{ text: 'Success after retry' }],
+          usage: { input_tokens: 3, output_tokens: 5 }
+        }
+      }
+
+      axios
+        .mockRejectedValueOnce(authError)
+        .mockResolvedValueOnce(successResponse)
+
+      vertexAiAccountService.getAccessToken
+        .mockResolvedValueOnce({ accessToken: 'old-token', expiresAt: new Date() })
+        .mockResolvedValueOnce({ accessToken: 'new-token', expiresAt: new Date() })
+
+      const messages = [{ role: 'user', content: 'Test' }]
+      const result = await vertexRelayService.sendVertexRequest({
+        messages,
+        accountId: 'test-account',
+        apiKeyId: 'test-api-key'
+      })
+
+      expect(vertexAiAccountService.getAccessToken).toHaveBeenCalledTimes(2)
+      expect(axios).toHaveBeenCalledTimes(2)
+      expect(result.content[0].text).toBe('Success after retry')
+    })
+
+    test('should convert Vertex AI API errors to Claude format', async () => {
+      const vertexError = new Error('API Error')
+      vertexError.response = {
+        status: 429,
+        data: {
+          error: {
+            message: 'Rate limit exceeded',
+            code: 'rate_limit_error'
+          }
+        }
+      }
+
+      axios.mockRejectedValue(vertexError)
+
+      const messages = [{ role: 'user', content: 'Test' }]
+
+      await expect(
+        vertexRelayService.sendVertexRequest({
+          messages,
+          accountId: 'test-account'
+        })
+      ).rejects.toEqual(
+        expect.objectContaining({
+          status: 429,
+          error: expect.objectContaining({
+            message: 'Rate limit exceeded for Vertex AI',
+            type: 'rate_limit_error',
+            code: 'rate_limit_exceeded'
+          })
+        })
+      )
+    })
+
+    test('should handle request cancellation', async () => {
+      const cancelError = new Error('Request was cancelled')
+      cancelError.name = 'CanceledError'
+
+      axios.mockRejectedValue(cancelError)
+
+      const messages = [{ role: 'user', content: 'Test' }]
+
+      await expect(
+        vertexRelayService.sendVertexRequest({
+          messages,
+          accountId: 'test-account'
+        })
+      ).rejects.toEqual(
+        expect.objectContaining({
+          status: 499,
+          error: expect.objectContaining({
+            message: 'Request canceled by client',
+            type: 'canceled',
+            code: 'request_canceled'
+          })
+        })
+      )
+
+      expect(logger.info).toHaveBeenCalledWith('Vertex AI request was aborted by client')
+    })
+
+    test('should include proxy configuration when provided', async () => {
+      const mockProxyAgent = { proxy: true }
+      ProxyHelper.createProxyAgent.mockReturnValue(mockProxyAgent)
+
+      axios.mockResolvedValue({
+        data: { content: [{ text: 'Response' }], usage: {} }
+      })
+
+      const messages = [{ role: 'user', content: 'Test' }]
+      await vertexRelayService.sendVertexRequest({
+        messages,
+        accountId: 'test-account',
+        proxy: { host: 'proxy.example.com', port: 8080 }
+      })
+
+      expect(ProxyHelper.createProxyAgent).toHaveBeenCalledWith({
+        host: 'proxy.example.com',
+        port: 8080
+      })
+
+      expect(axios).toHaveBeenCalledWith(
+        expect.objectContaining({
+          httpsAgent: mockProxyAgent,
+          proxy: false
+        })
+      )
+    })
+
+    test('should handle AbortController signal', async () => {
+      axios.mockResolvedValue({
+        data: { content: [{ text: 'Response' }], usage: {} }
+      })
+
+      const abortController = new AbortController()
+      const messages = [{ role: 'user', content: 'Test' }]
+
+      await vertexRelayService.sendVertexRequest({
+        messages,
+        accountId: 'test-account',
+        signal: abortController.signal
+      })
+
+      expect(axios).toHaveBeenCalledWith(
+        expect.objectContaining({
+          signal: abortController.signal
+        })
+      )
+      expect(logger.debug).toHaveBeenCalledWith('AbortController signal attached to Vertex AI request')
     })
   })
 })
