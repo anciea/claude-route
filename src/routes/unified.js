@@ -7,6 +7,7 @@ const {
   handleStandardGenerateContent: geminiHandleGenerateContent,
   handleStandardStreamGenerateContent: geminiHandleStreamGenerateContent
 } = require('../handlers/geminiHandlers')
+const vertexRelayService = require('../services/relay/vertexRelayService')
 const openaiRoutes = require('./openaiRoutes')
 const { CODEX_CLI_INSTRUCTIONS } = require('./openaiRoutes')
 const apiKeyService = require('../services/apiKeyService')
@@ -23,8 +24,13 @@ function detectBackendFromModel(modelName) {
 
   const model = modelName.toLowerCase()
 
-  // Claude 模型
+  // Claude 模型 - Check for Vertex AI supported Claude 4.6 models
   if (model.startsWith('claude-')) {
+    // Claude 4.6 models via Vertex AI
+    if (model.includes('4-6') || (model.includes('haiku') && model.includes('4-5'))) {
+      return 'vertex-ai'
+    }
+    // Default Claude backend for other models
     return 'claude'
   }
 
@@ -324,6 +330,91 @@ async function routeToBackend(req, res, requestedModel) {
       }
 
       return await geminiHandleGenerateContent(req, res)
+    }
+  } else if (backend === 'vertex-ai') {
+    // Vertex AI 后端：Claude 4.6 models via Google Cloud Vertex AI
+    if (!apiKeyService.hasPermission(permissions, 'claude')) {
+      return res.status(403).json({
+        error: {
+          message: 'This API key does not have permission to access Claude',
+          type: 'permission_denied',
+          code: 'permission_denied'
+        }
+      })
+    }
+
+    try {
+      // Extract request parameters
+      const { messages, model, temperature, max_tokens: maxTokens, stream } = req.body
+
+      // Call Vertex AI relay service directly
+      const result = await vertexRelayService.sendVertexRequest({
+        messages,
+        model,
+        temperature,
+        maxTokens,
+        stream,
+        apiKeyId: req.apiKey.id,
+        signal: req.signal,
+        accountId: null // Will be selected by service
+      })
+
+      if (stream) {
+        // Handle streaming response
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'Access-Control-Allow-Origin': '*'
+        })
+
+        // Stream the result
+        if (result && typeof result[Symbol.asyncIterator] === 'function') {
+          try {
+            for await (const chunk of result) {
+              if (req.signal?.aborted) {
+                break
+              }
+              res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+            }
+          } catch (streamError) {
+            logger.error('❌ Vertex AI streaming error:', streamError)
+            res.write(`data: ${JSON.stringify({ error: streamError.message })}\n\n`)
+          }
+        }
+
+        res.write('data: [DONE]\n\n')
+        res.end()
+      } else {
+        // Handle non-streaming response
+        res.status(200).json(result)
+      }
+    } catch (error) {
+      logger.error('❌ Vertex AI request failed in unified route:', error)
+
+      // Handle authentication errors gracefully
+      if (
+        error.message?.includes('authentication') ||
+        error.status === 401 ||
+        error.status === 403
+      ) {
+        return res.status(401).json({
+          error: {
+            message: 'Vertex AI authentication failed. Please check your account configuration.',
+            type: 'authentication_error',
+            code: 'vertex_auth_failed'
+          }
+        })
+      }
+
+      // Handle API errors gracefully
+      return res.status(500).json({
+        error: {
+          message: error.message || 'Vertex AI service error',
+          type: 'api_error',
+          code: 'vertex_api_error'
+        }
+      })
     }
   } else {
     return res.status(500).json({
