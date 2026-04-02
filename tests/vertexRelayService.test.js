@@ -230,4 +230,190 @@ describe('vertexRelayService', () => {
       expect(result.content).toEqual([])
     })
   })
+
+  describe('handleVertexStream', () => {
+    test('should process Vertex AI streaming responses and convert to Claude API SSE format', async () => {
+      // Mock streaming response data
+      const mockStreamData = [
+        'data: {"content":[{"text":"Hello"}],"usage":{"input_tokens":5,"output_tokens":1}}\n',
+        'data: {"content":[{"text":" there"}],"usage":{"input_tokens":5,"output_tokens":2}}\n',
+        'data: {"content":[{"text":"!"}],"stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":3}}\n'
+      ]
+
+      // Create a mock stream
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          for (const data of mockStreamData) {
+            yield Buffer.from(data)
+          }
+        }
+      }
+
+      const mockResponse = {
+        data: mockStream
+      }
+
+      const chunks = []
+      for await (const chunk of vertexRelayService.handleVertexStream(
+        mockResponse,
+        'claude-opus-4-6',
+        'test-api-key',
+        'test-account'
+      )) {
+        chunks.push(chunk)
+      }
+
+      // Should have received message_start, content_block_start, content deltas, and completion events
+      expect(chunks.length).toBeGreaterThan(4)
+      expect(chunks[0]).toMatch(/event: message_start/)
+      expect(chunks[1]).toMatch(/event: content_block_start/)
+      expect(chunks.some(chunk => chunk.includes('content_block_delta'))).toBe(true)
+      expect(chunks.some(chunk => chunk.includes('message_stop'))).toBe(true)
+
+      // Verify usage recording was called
+      expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
+        'test-api-key',
+        5, // input tokens
+        3, // output tokens
+        0, // cache create tokens
+        0, // cache read tokens
+        'claude-opus-4-6',
+        'test-account',
+        'vertex-ai'
+      )
+    })
+
+    test('should handle stream errors gracefully', async () => {
+      const mockErrorStream = {
+        [Symbol.asyncIterator]: async function* () {
+          throw new Error('Stream connection failed')
+        }
+      }
+
+      const mockResponse = {
+        data: mockErrorStream
+      }
+
+      const chunks = []
+      for await (const chunk of vertexRelayService.handleVertexStream(
+        mockResponse,
+        'claude-opus-4-6',
+        'test-api-key'
+      )) {
+        chunks.push(chunk)
+      }
+
+      // Should contain error event
+      const errorChunk = chunks.find(chunk => chunk.includes('event: error'))
+      expect(errorChunk).toBeTruthy()
+      expect(errorChunk).toContain('Stream connection failed')
+    })
+
+    test('should handle client disconnection (CanceledError)', async () => {
+      const mockAbortedStream = {
+        [Symbol.asyncIterator]: async function* () {
+          const error = new Error('Request canceled')
+          error.name = 'CanceledError'
+          throw error
+        }
+      }
+
+      const mockResponse = {
+        data: mockAbortedStream
+      }
+
+      const chunks = []
+      for await (const chunk of vertexRelayService.handleVertexStream(
+        mockResponse,
+        'claude-opus-4-6',
+        'test-api-key'
+      )) {
+        chunks.push(chunk)
+      }
+
+      // Should have message_start and content_block_start, but no error event for cancellation
+      expect(chunks.some(chunk => chunk.includes('event: error'))).toBe(false)
+      expect(logger.info).toHaveBeenCalledWith('Vertex AI stream request was aborted by client')
+    })
+
+    test('should extract usage statistics from stream events', async () => {
+      const mockStreamData = [
+        'data: {"content":[{"text":"Test"}],"usage":{"input_tokens":10,"output_tokens":1}}\n',
+        'data: {"content":[{"text":" response"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":3}}\n'
+      ]
+
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          for (const data of mockStreamData) {
+            yield Buffer.from(data)
+          }
+        }
+      }
+
+      const mockResponse = {
+        data: mockStream
+      }
+
+      const chunks = []
+      for await (const chunk of vertexRelayService.handleVertexStream(
+        mockResponse,
+        'claude-sonnet-4-6',
+        'test-api-key',
+        'test-account'
+      )) {
+        chunks.push(chunk)
+      }
+
+      // Verify final usage was recorded correctly
+      expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
+        'test-api-key',
+        10, // input tokens (final count)
+        3,  // output tokens (final count)
+        0,
+        0,
+        'claude-sonnet-4-6',
+        'test-account',
+        'vertex-ai'
+      )
+    })
+
+    test('should handle malformed JSON in stream gracefully', async () => {
+      const mockStreamData = [
+        'data: {"content":[{"text":"Valid"}]}\n',
+        'data: {invalid json}\n',
+        'data: {"content":[{"text":"More valid"}],"stop_reason":"end_turn"}\n'
+      ]
+
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          for (const data of mockStreamData) {
+            yield Buffer.from(data)
+          }
+        }
+      }
+
+      const mockResponse = {
+        data: mockStream
+      }
+
+      const chunks = []
+      for await (const chunk of vertexRelayService.handleVertexStream(
+        mockResponse,
+        'claude-opus-4-6',
+        'test-api-key'
+      )) {
+        chunks.push(chunk)
+      }
+
+      // Should process valid chunks and skip invalid ones
+      expect(chunks.some(chunk => chunk.includes('Valid'))).toBe(true)
+      expect(chunks.some(chunk => chunk.includes('More valid'))).toBe(true)
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Error parsing JSON line'),
+        expect.any(String),
+        'Line:',
+        '{invalid json}'
+      )
+    })
+  })
 })
