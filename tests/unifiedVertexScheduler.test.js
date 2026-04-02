@@ -6,12 +6,16 @@ jest.mock('../src/utils/logger')
 jest.mock('../src/services/account/vertexAiAccountService')
 jest.mock('../src/utils/upstreamErrorHelper')
 jest.mock('../src/utils/commonHelper')
-jest.mock('../../config/config', () => ({
-  session: {
-    stickyTtlHours: 1,
-    renewalThresholdMinutes: 0
-  }
-}), { virtual: true })
+jest.mock(
+  '../../config/config',
+  () => ({
+    session: {
+      stickyTtlHours: 1,
+      renewalThresholdMinutes: 0
+    }
+  }),
+  { virtual: true }
+)
 
 // Mock the crypto dependencies for vertexAiAccountService
 jest.mock('../src/utils/commonHelper', () => ({
@@ -54,6 +58,16 @@ describe('UnifiedVertexScheduler', () => {
     sortAccountsByPriority.mockImplementation((accounts) => [...accounts])
     isActive.mockImplementation((value) => value === true || value === 'true')
     isSchedulable.mockImplementation((value) => value !== false && value !== 'false')
+
+    // Mock vertexAiAccountService default responses
+    vertexAiAccountService.getAllAccounts.mockResolvedValue([])
+    vertexAiAccountService.selectAvailableAccount.mockResolvedValue(null)
+    vertexAiAccountService.getAccount.mockResolvedValue(null)
+    vertexAiAccountService.markAccountUsed = jest.fn().mockResolvedValue(undefined)
+    vertexAiAccountService.setAccountRateLimited = jest.fn().mockResolvedValue(undefined)
+
+    // Mock upstreamErrorHelper
+    upstreamErrorHelper.isTempUnavailable.mockResolvedValue(false)
   })
 
   describe('selectAccountForApiKey', () => {
@@ -75,7 +89,10 @@ describe('UnifiedVertexScheduler', () => {
         vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
         upstreamErrorHelper.isTempUnavailable.mockResolvedValue(false)
 
-        const result = await UnifiedVertexScheduler.selectAccountForApiKey(mockApiKeyData, sessionHash)
+        const result = await UnifiedVertexScheduler.selectAccountForApiKey(
+          mockApiKeyData,
+          sessionHash
+        )
 
         expect(result).toEqual(mockMappedAccount)
         expect(mockRedisClient.get).toHaveBeenCalledWith('vertex_session_mapping:test-session-hash')
@@ -92,12 +109,19 @@ describe('UnifiedVertexScheduler', () => {
         // Mock account is not available
         vertexAiAccountService.getAccount.mockResolvedValue(null)
 
-        // Mock fallback account selection
-        vertexAiAccountService.selectAvailableAccount.mockResolvedValue({
-          id: 'vertex-456',
-          name: 'Fallback Account',
-          isActive: true
-        })
+        // Mock fallback account selection - return accounts for _getAllAvailableAccounts
+        vertexAiAccountService.getAllAccounts.mockResolvedValue([
+          {
+            id: 'vertex-456',
+            name: 'Fallback Account',
+            isActive: true,
+            status: 'active',
+            accountType: 'shared',
+            schedulable: true,
+            priority: 50,
+            lastUsedAt: '2023-01-01T00:00:00Z'
+          }
+        ])
 
         await UnifiedVertexScheduler.selectAccountForApiKey(mockApiKeyData, sessionHash)
 
@@ -110,15 +134,24 @@ describe('UnifiedVertexScheduler', () => {
         // Mock no existing session mapping
         mockRedisClient.get.mockResolvedValue(null)
 
-        // Mock account selection
-        const mockSelectedAccount = {
-          id: 'vertex-789',
-          name: 'Selected Account',
-          isActive: true
-        }
-        vertexAiAccountService.selectAvailableAccount.mockResolvedValue(mockSelectedAccount)
+        // Mock available accounts
+        vertexAiAccountService.getAllAccounts.mockResolvedValue([
+          {
+            id: 'vertex-789',
+            name: 'Selected Account',
+            isActive: true,
+            status: 'active',
+            accountType: 'shared',
+            schedulable: true,
+            priority: 50,
+            lastUsedAt: '2023-01-01T00:00:00Z'
+          }
+        ])
 
-        const result = await UnifiedVertexScheduler.selectAccountForApiKey(mockApiKeyData, sessionHash)
+        const result = await UnifiedVertexScheduler.selectAccountForApiKey(
+          mockApiKeyData,
+          sessionHash
+        )
 
         expect(result).toEqual({ accountId: 'vertex-789', accountType: 'vertex-ai' })
         expect(mockRedisClient.setex).toHaveBeenCalledWith(
@@ -160,13 +193,19 @@ describe('UnifiedVertexScheduler', () => {
         // Mock dedicated account not available
         vertexAiAccountService.getAccount.mockResolvedValue(null)
 
-        // Mock fallback selection
-        const mockFallbackAccount = {
-          id: 'fallback-vertex-456',
-          name: 'Fallback Account',
-          isActive: true
-        }
-        vertexAiAccountService.selectAvailableAccount.mockResolvedValue(mockFallbackAccount)
+        // Mock fallback accounts from pool
+        vertexAiAccountService.getAllAccounts.mockResolvedValue([
+          {
+            id: 'fallback-vertex-456',
+            name: 'Fallback Account',
+            isActive: true,
+            status: 'active',
+            accountType: 'shared',
+            schedulable: true,
+            priority: 50,
+            lastUsedAt: '2023-01-01T00:00:00Z'
+          }
+        ])
 
         const result = await UnifiedVertexScheduler.selectAccountForApiKey(apiKeyWithBinding)
 
@@ -175,11 +214,12 @@ describe('UnifiedVertexScheduler', () => {
     })
 
     test('should throw error when no accounts available', async () => {
-      vertexAiAccountService.selectAvailableAccount.mockResolvedValue(null)
+      // Mock no accounts available
+      vertexAiAccountService.getAllAccounts.mockResolvedValue([])
 
-      await expect(
-        UnifiedVertexScheduler.selectAccountForApiKey(mockApiKeyData)
-      ).rejects.toThrow('No available Vertex AI accounts')
+      await expect(UnifiedVertexScheduler.selectAccountForApiKey(mockApiKeyData)).rejects.toThrow(
+        'No available Vertex AI accounts'
+      )
     })
   })
 
@@ -211,14 +251,28 @@ describe('UnifiedVertexScheduler', () => {
       expect(result).toBe(true)
     })
 
+    test('isAccountRateLimited should return false for expired rate limit', async () => {
+      const mockAccount = {
+        id: 'vertex-123',
+        rateLimitStatus: 'limited',
+        rateLimitedAt: new Date(Date.now() - 120 * 60 * 1000).toISOString(), // 2 hours ago
+        rateLimitDuration: 60 // 60 minutes
+      }
+      vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
+
+      const result = await UnifiedVertexScheduler.isAccountRateLimited('vertex-123')
+
+      expect(result).toBe(false)
+    })
+
     test('markAccountRateLimited should set rate limit and delete session mapping', async () => {
       const accountId = 'vertex-123'
       const sessionHash = 'test-session'
 
-      vertexAiAccountService.setAccountRateLimited = jest.fn().mockResolvedValue(true)
-
       const result = await UnifiedVertexScheduler.markAccountRateLimited(
-        accountId, 'vertex-ai', sessionHash
+        accountId,
+        'vertex-ai',
+        sessionHash
       )
 
       expect(result).toEqual({ success: true })
@@ -229,8 +283,6 @@ describe('UnifiedVertexScheduler', () => {
     test('removeAccountRateLimit should clear rate limit', async () => {
       const accountId = 'vertex-123'
 
-      vertexAiAccountService.setAccountRateLimited = jest.fn().mockResolvedValue(true)
-
       const result = await UnifiedVertexScheduler.removeAccountRateLimit(accountId, 'vertex-ai')
 
       expect(result).toEqual({ success: true })
@@ -239,6 +291,13 @@ describe('UnifiedVertexScheduler', () => {
   })
 
   describe('account availability', () => {
+    beforeEach(() => {
+      // Reset the rate limit check mock for each test
+      if (UnifiedVertexScheduler.isAccountRateLimited.mockRestore) {
+        UnifiedVertexScheduler.isAccountRateLimited.mockRestore()
+      }
+    })
+
     test('_isAccountAvailable should return true for healthy account', async () => {
       const mockAccount = {
         id: 'vertex-123',
@@ -248,11 +307,17 @@ describe('UnifiedVertexScheduler', () => {
       }
       vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
       upstreamErrorHelper.isTempUnavailable.mockResolvedValue(false)
-      UnifiedVertexScheduler.isAccountRateLimited = jest.fn().mockResolvedValue(false)
+
+      // Mock the rate limit check specifically for this test
+      const isRateLimitedSpy = jest.spyOn(UnifiedVertexScheduler, 'isAccountRateLimited')
+      isRateLimitedSpy.mockResolvedValue(false)
 
       const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'vertex-ai')
 
       expect(result).toBe(true)
+      expect(upstreamErrorHelper.isTempUnavailable).toHaveBeenCalledWith('vertex-123', 'vertex-ai')
+
+      isRateLimitedSpy.mockRestore()
     })
 
     test('_isAccountAvailable should return false for inactive account', async () => {
@@ -261,6 +326,34 @@ describe('UnifiedVertexScheduler', () => {
         isActive: false,
         status: 'active',
         schedulable: true
+      }
+      vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
+
+      const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'vertex-ai')
+
+      expect(result).toBe(false)
+    })
+
+    test('_isAccountAvailable should return false for account with error status', async () => {
+      const mockAccount = {
+        id: 'vertex-123',
+        isActive: true,
+        status: 'error',
+        schedulable: true
+      }
+      vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
+
+      const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'vertex-ai')
+
+      expect(result).toBe(false)
+    })
+
+    test('_isAccountAvailable should return false for non-schedulable account', async () => {
+      const mockAccount = {
+        id: 'vertex-123',
+        isActive: true,
+        status: 'active',
+        schedulable: false
       }
       vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
 
@@ -280,6 +373,34 @@ describe('UnifiedVertexScheduler', () => {
       upstreamErrorHelper.isTempUnavailable.mockResolvedValue(true)
 
       const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'vertex-ai')
+
+      expect(result).toBe(false)
+      expect(upstreamErrorHelper.isTempUnavailable).toHaveBeenCalledWith('vertex-123', 'vertex-ai')
+    })
+
+    test('_isAccountAvailable should return false for rate limited account', async () => {
+      const mockAccount = {
+        id: 'vertex-123',
+        isActive: true,
+        status: 'active',
+        schedulable: true
+      }
+      vertexAiAccountService.getAccount.mockResolvedValue(mockAccount)
+      upstreamErrorHelper.isTempUnavailable.mockResolvedValue(false)
+
+      // Mock rate limit check to return true (rate limited)
+      const isRateLimitedSpy = jest.spyOn(UnifiedVertexScheduler, 'isAccountRateLimited')
+      isRateLimitedSpy.mockResolvedValue(true)
+
+      const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'vertex-ai')
+
+      expect(result).toBe(false)
+
+      isRateLimitedSpy.mockRestore()
+    })
+
+    test('_isAccountAvailable should return false for non-vertex-ai account type', async () => {
+      const result = await UnifiedVertexScheduler._isAccountAvailable('vertex-123', 'gemini')
 
       expect(result).toBe(false)
     })

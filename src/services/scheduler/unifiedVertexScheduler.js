@@ -25,10 +25,7 @@ class UnifiedVertexScheduler {
           this._isActive(boundAccount.isActive) &&
           boundAccount.status !== 'error'
         ) {
-          const isAvailable = await this._isAccountAvailable(
-            boundAccount.id,
-            'vertex-ai'
-          )
+          const isAvailable = await this._isAccountAvailable(boundAccount.id, 'vertex-ai')
           if (isAvailable) {
             logger.info(
               `🎯 Using bound dedicated Vertex AI account: ${boundAccount.name} (${apiKeyData.vertexAccountId}) for API key ${apiKeyData.name}`
@@ -74,10 +71,14 @@ class UnifiedVertexScheduler {
         }
       }
 
-      // Select from available Vertex AI accounts
-      const selectedAccount = await vertexAiAccountService.selectAvailableAccount(sessionHash || 'default')
+      // Get all available accounts
+      const availableAccounts = await this._getAllAvailableAccounts(
+        apiKeyData,
+        requestedModel,
+        options
+      )
 
-      if (!selectedAccount) {
+      if (availableAccounts.length === 0) {
         if (requestedModel) {
           throw new Error(
             `No available Vertex AI accounts support the requested model: ${requestedModel}`
@@ -87,28 +88,34 @@ class UnifiedVertexScheduler {
         }
       }
 
+      // Sort accounts by priority and last used time
+      const sortedAccounts = sortAccountsByPriority(availableAccounts)
+
+      // Select the first account
+      const selectedAccount = sortedAccounts[0]
+
       // If session hash provided, create new mapping
       if (sessionHash) {
         await this._setSessionMapping(
           sessionHash,
-          selectedAccount.id,
-          'vertex-ai'
+          selectedAccount.accountId,
+          selectedAccount.accountType
         )
         logger.info(
-          `🎯 Created new sticky session mapping: ${selectedAccount.name} (${selectedAccount.id}, vertex-ai) for session ${sessionHash}`
+          `🎯 Created new sticky session mapping: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) for session ${sessionHash}`
         )
       }
 
       logger.info(
-        `🎯 Selected account: ${selectedAccount.name} (${selectedAccount.id}, vertex-ai) for API key ${apiKeyData.name}`
+        `🎯 Selected account: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) for API key ${apiKeyData.name}`
       )
 
       // Update account last used time
-      await vertexAiAccountService.markAccountUsed?.(selectedAccount.id)
+      await vertexAiAccountService.markAccountUsed?.(selectedAccount.accountId)
 
       return {
-        accountId: selectedAccount.id,
-        accountType: 'vertex-ai'
+        accountId: selectedAccount.accountId,
+        accountType: selectedAccount.accountType
       }
     } catch (error) {
       logger.error('❌ Failed to select Vertex AI account for API key:', error)
@@ -144,6 +151,108 @@ class UnifiedVertexScheduler {
       logger.warn(`⚠️ Failed to check account availability: ${accountId}`, error)
       return false
     }
+  }
+
+  // 📋 Get all available accounts
+  async _getAllAvailableAccounts(apiKeyData, requestedModel = null, options = {}) {
+    const availableAccounts = []
+
+    // If API Key has dedicated account binding, prioritize it
+    if (apiKeyData.vertexAccountId) {
+      const boundAccount = await vertexAiAccountService.getAccount(apiKeyData.vertexAccountId)
+      if (
+        boundAccount &&
+        this._isActive(boundAccount.isActive) &&
+        boundAccount.status !== 'error'
+      ) {
+        const isTempUnavailable = await upstreamErrorHelper.isTempUnavailable(
+          boundAccount.id,
+          'vertex-ai'
+        )
+        if (isTempUnavailable) {
+          logger.warn(
+            `⏱️ Bound Vertex AI account ${boundAccount.name} (${boundAccount.id}) temporarily unavailable, falling back to pool`
+          )
+        }
+        const isRateLimited = await this.isAccountRateLimited(boundAccount.id)
+        if (!isRateLimited && !isTempUnavailable) {
+          // Check model support if specified
+          if (
+            requestedModel &&
+            boundAccount.supportedModels &&
+            boundAccount.supportedModels.length > 0
+          ) {
+            const modelSupported = boundAccount.supportedModels.includes(requestedModel)
+            if (!modelSupported) {
+              logger.warn(
+                `⚠️ Bound Vertex AI account ${boundAccount.name} does not support model ${requestedModel}`
+              )
+              return availableAccounts
+            }
+          }
+
+          logger.info(`🎯 Using bound Vertex AI account: ${boundAccount.name} (${boundAccount.id})`)
+          return [
+            {
+              ...boundAccount,
+              accountId: boundAccount.id,
+              accountType: 'vertex-ai',
+              priority: parseInt(boundAccount.priority) || 50,
+              lastUsedAt: boundAccount.lastUsedAt || '0'
+            }
+          ]
+        }
+      } else {
+        logger.warn(`⚠️ Bound Vertex AI account ${apiKeyData.vertexAccountId} is not available`)
+      }
+    }
+
+    // Get all shared Vertex AI accounts
+    const vertexAccounts = await vertexAiAccountService.getAllAccounts()
+    for (const account of vertexAccounts) {
+      if (
+        this._isActive(account.isActive) &&
+        account.status !== 'error' &&
+        (account.accountType === 'shared' || !account.accountType) && // Compatible with old data
+        isSchedulable(account.schedulable)
+      ) {
+        // Check temporary unavailability
+        const isTempUnavailable = await upstreamErrorHelper.isTempUnavailable(
+          account.id,
+          'vertex-ai'
+        )
+        if (isTempUnavailable) {
+          logger.debug(`⏭️ Skipping Vertex AI account ${account.name} - temporarily unavailable`)
+          continue
+        }
+
+        // Check model support if specified
+        if (requestedModel && account.supportedModels && account.supportedModels.length > 0) {
+          const modelSupported = account.supportedModels.includes(requestedModel)
+          if (!modelSupported) {
+            logger.debug(
+              `⏭️ Skipping Vertex AI account ${account.name} - doesn't support model ${requestedModel}`
+            )
+            continue
+          }
+        }
+
+        // Check rate limiting
+        const isRateLimited = await this.isAccountRateLimited(account.id)
+        if (!isRateLimited) {
+          availableAccounts.push({
+            ...account,
+            accountId: account.id,
+            accountType: 'vertex-ai',
+            priority: parseInt(account.priority) || 50, // Default priority 50
+            lastUsedAt: account.lastUsedAt || '0'
+          })
+        }
+      }
+    }
+
+    logger.info(`📊 Total available Vertex AI accounts: ${availableAccounts.length}`)
+    return availableAccounts
   }
 
   // 🔧 Helper method: check if account is active (compatible with string and boolean)
@@ -306,7 +415,10 @@ class UnifiedVertexScheduler {
       }
       return false
     } catch (error) {
-      logger.error(`❌ Failed to check rate limit status for Vertex AI account: ${accountId}`, error)
+      logger.error(
+        `❌ Failed to check rate limit status for Vertex AI account: ${accountId}`,
+        error
+      )
       return false
     }
   }
