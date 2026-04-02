@@ -410,6 +410,41 @@ async function getAccessToken(accountId) {
   }
 }
 
+/**
+ * Mark account as used (update lastUsedAt)
+ * @param {string} accountId - Account ID
+ * @returns {Promise<void>}
+ */
+async function markAccountUsed(accountId) {
+  try {
+    await updateAccount(accountId, { lastUsedAt: new Date().toISOString() })
+  } catch (error) {
+    logger.error('Failed to mark account as used:', { accountId, error: error.message })
+    // Don't throw - this is not critical
+  }
+}
+
+/**
+ * Set account rate limit status
+ * @param {string} accountId - Account ID
+ * @param {boolean} isLimited - Whether account is rate limited
+ * @returns {Promise<void>}
+ */
+async function setAccountRateLimited(accountId, isLimited) {
+  try {
+    const updates = {
+      rateLimitStatus: isLimited ? 'limited' : null,
+      rateLimitedAt: isLimited ? new Date().toISOString() : null
+    }
+    await updateAccount(accountId, updates)
+
+    logger.info(`Set rate limit status for Vertex AI account ${accountId}: ${isLimited ? 'limited' : 'cleared'}`)
+  } catch (error) {
+    logger.error('Failed to set rate limit status:', { accountId, isLimited, error: error.message })
+    throw error
+  }
+}
+
 module.exports = {
   createAccount,
   getAccount,
@@ -420,5 +455,7 @@ module.exports = {
   selectAvailableAccount,
   validateServiceAccountJson,
   generateAccessToken,
-  getAccessToken
+  getAccessToken,
+  markAccountUsed,
+  setAccountRateLimited
 }
