@@ -168,9 +168,9 @@
                         </div>
                       </div>
                       <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Gemini
+                        Google Cloud
                       </h4>
-                      <p class="text-xs text-gray-600 dark:text-gray-400">Google AI</p>
+                      <p class="text-xs text-gray-600 dark:text-gray-400">Gemini & Vertex AI</p>
                     </div>
                   </div>
 
@@ -538,6 +538,39 @@
                           <i class="fas fa-check text-xs text-white"></i>
                         </div>
                       </label>
+
+                      <label
+                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                        :class="[
+                          form.platform === 'vertex_ai'
+                            ? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/30'
+                            : 'border-gray-300 bg-white hover:border-green-400 hover:bg-green-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-green-500 dark:hover:bg-green-900/20'
+                        ]"
+                      >
+                        <input
+                          v-model="form.platform"
+                          class="sr-only"
+                          type="radio"
+                          value="vertex_ai"
+                        />
+                        <div class="flex items-center gap-2">
+                          <i class="fab fa-google text-sm text-green-600 dark:text-green-400"></i>
+                          <div>
+                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                              >Vertex AI</span
+                            >
+                            <span class="text-xs text-gray-500 dark:text-gray-400"
+                              >Service Account</span
+                            >
+                          </div>
+                        </div>
+                        <div
+                          v-if="form.platform === 'vertex_ai'"
+                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-green-500"
+                        >
+                          <i class="fas fa-check text-xs text-white"></i>
+                        </div>
+                      </label>
                     </template>
 
                     <!-- Droid 子选项 -->
@@ -581,7 +614,8 @@
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
                 form.platform !== 'openai-responses' &&
-                form.platform !== 'gemini-api'
+                form.platform !== 'gemini-api' &&
+                form.platform !== 'vertex_ai'
               "
             >
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
@@ -2189,6 +2223,114 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   留空使用默认值 factory-cli/0.32.1，可根据需要自定义
                 </p>
+              </div>
+            </div>
+
+            <!-- Vertex AI Service Account JSON 上传 -->
+            <div
+              v-if="form.platform === 'vertex_ai' && !isEdit"
+              class="space-y-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-700 dark:bg-green-900/30"
+            >
+              <div class="mb-4 flex items-start gap-3">
+                <div
+                  class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500"
+                >
+                  <i class="fab fa-google text-sm text-white" />
+                </div>
+                <div>
+                  <h5 class="mb-2 font-semibold text-green-900 dark:text-green-300">
+                    Vertex AI Service Account JSON
+                  </h5>
+                  <p class="mb-2 text-sm text-green-800 dark:text-green-300">
+                    上传从 Google Cloud Console 下载的 Service Account JSON 凭证文件。
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >Service Account JSON 文件 *</label
+                >
+                <div class="rounded-md border-2 border-dashed border-green-300 p-6 text-center">
+                  <input
+                    ref="fileInput"
+                    accept=".json"
+                    class="hidden"
+                    type="file"
+                    @change="handleJsonFileUpload"
+                  />
+                  <div v-if="!form.serviceAccountJson" class="space-y-2">
+                    <i class="fas fa-upload text-2xl text-green-500"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                      点击上传或拖拽 Service Account JSON 文件
+                    </p>
+                    <button
+                      class="text-sm font-medium text-green-600 hover:text-green-700"
+                      type="button"
+                      @click="$refs.fileInput.click()"
+                    >
+                      选择文件
+                    </button>
+                  </div>
+                  <div v-else class="space-y-2">
+                    <i class="fas fa-check-circle text-2xl text-green-500"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                      文件已上传: {{ form.serviceAccountFileName }}
+                    </p>
+                    <button
+                      class="text-sm font-medium text-green-600 hover:text-green-700"
+                      type="button"
+                      @click="clearJsonFile"
+                    >
+                      重新选择
+                    </button>
+                  </div>
+                </div>
+                <p v-if="errors.serviceAccountJson" class="mt-1 text-xs text-red-500">
+                  {{ errors.serviceAccountJson }}
+                </p>
+              </div>
+
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    >Google Cloud 项目 ID *</label
+                  >
+                  <input
+                    v-model="form.projectId"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.projectId }"
+                    placeholder="your-project-id"
+                    required
+                    type="text"
+                  />
+                  <p v-if="errors.projectId" class="mt-1 text-xs text-red-500">
+                    {{ errors.projectId }}
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    >地区 *</label
+                  >
+                  <select
+                    v-model="form.location"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    :class="{ 'border-red-500': errors.location }"
+                    required
+                  >
+                    <option value="">选择地区</option>
+                    <option value="us-central1">us-central1 (美国中部)</option>
+                    <option value="us-east1">us-east1 (美国东部)</option>
+                    <option value="us-west1">us-west1 (美国西部)</option>
+                    <option value="europe-west1">europe-west1 (欧洲西部)</option>
+                    <option value="asia-northeast1">asia-northeast1 (亚洲东北部)</option>
+                    <option value="global">global (全球)</option>
+                  </select>
+                  <p v-if="errors.location" class="mt-1 text-xs text-red-500">
+                    {{ errors.location }}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -4155,7 +4297,7 @@ const determinePlatformGroup = (platform) => {
     return 'claude'
   } else if (['openai', 'openai-responses', 'azure_openai'].includes(platform)) {
     return 'openai'
-  } else if (['gemini', 'gemini-antigravity', 'gemini-api'].includes(platform)) {
+  } else if (['gemini', 'gemini-antigravity', 'gemini-api', 'vertex_ai'].includes(platform)) {
     return 'gemini'
   } else if (platform === 'droid') {
     return 'droid'
@@ -4405,8 +4547,58 @@ const form = ref({
     }
     return ''
   })(),
-  expiresAt: props.account?.expiresAt || null
+  expiresAt: props.account?.expiresAt || null,
+  // Vertex AI 特定字段
+  serviceAccountJson: props.account?.serviceAccountJson || '',
+  serviceAccountFileName: props.account?.serviceAccountFileName || '',
+  location: props.account?.location || 'global'
 })
+
+// Vertex AI Service Account JSON 文件处理函数
+const handleJsonFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+    errors.value.serviceAccountJson = '请选择有效的 JSON 文件'
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const jsonContent = JSON.parse(e.target.result)
+      // 验证是否为有效的 Service Account JSON
+      if (
+        jsonContent.type !== 'service_account' ||
+        !jsonContent.project_id ||
+        !jsonContent.private_key
+      ) {
+        errors.value.serviceAccountJson = '无效的 Service Account JSON 文件'
+        return
+      }
+
+      form.value.serviceAccountJson = e.target.result
+      form.value.serviceAccountFileName = file.name
+      if (!form.value.projectId && jsonContent.project_id) {
+        form.value.projectId = jsonContent.project_id
+      }
+      errors.value.serviceAccountJson = ''
+    } catch (error) {
+      errors.value.serviceAccountJson = 'JSON 文件格式错误'
+    }
+  }
+  reader.readAsText(file)
+}
+
+const clearJsonFile = () => {
+  form.value.serviceAccountJson = ''
+  form.value.serviceAccountFileName = ''
+  errors.value.serviceAccountJson = ''
+  // 清除文件输入
+  const fileInput = document.querySelector('input[type="file"]')
+  if (fileInput) fileInput.value = ''
+}
 
 const buildClaudeTempUnavailablePolicyPayload = () => ({
   disableTempUnavailable: !!form.value.disableTempUnavailable,
@@ -5333,6 +5525,20 @@ const createAccount = async () => {
         errors.value.refreshToken = '请填写 Refresh Token'
         hasError = true
       }
+    } else if (form.value.platform === 'vertex_ai') {
+      // Vertex AI 平台验证
+      if (!form.value.serviceAccountJson || form.value.serviceAccountJson.trim() === '') {
+        errors.value.serviceAccountJson = '请上传 Service Account JSON 文件'
+        hasError = true
+      }
+      if (!form.value.projectId || form.value.projectId.trim() === '') {
+        errors.value.projectId = '请填写项目 ID'
+        hasError = true
+      }
+      if (!form.value.location || form.value.location.trim() === '') {
+        errors.value.location = '请选择地区'
+        hasError = true
+      }
     } else if (form.value.platform === 'claude') {
       // Claude 平台需要 Access Token
       if (!form.value.accessToken || form.value.accessToken.trim() === '') {
@@ -5573,6 +5779,14 @@ const createAccount = async () => {
       data.priority = form.value.priority || 50
       data.isActive = form.value.isActive !== false
       data.schedulable = form.value.schedulable !== false
+    } else if (form.value.platform === 'vertex_ai') {
+      // Vertex AI 账户特定数据
+      data.projectId = form.value.projectId
+      data.location = form.value.location || 'global'
+      data.serviceAccountJson = form.value.serviceAccountJson
+      data.priority = form.value.priority || 50
+      data.isActive = form.value.isActive !== false
+      data.schedulable = form.value.schedulable !== false
     }
 
     // 支持 disableAutoProtection 的平台才写入
@@ -5600,6 +5814,8 @@ const createAccount = async () => {
       result = await accountsStore.createGeminiAccount(data)
     } else if (form.value.platform === 'gemini-api') {
       result = await accountsStore.createGeminiApiAccount(data)
+    } else if (form.value.platform === 'vertex_ai') {
+      result = await accountsStore.createVertexAiAccount(data)
     } else {
       throw new Error(`不支持的平台: ${form.value.platform}`)
     }
@@ -6176,6 +6392,9 @@ watch(
     } else if (newPlatform === 'gemini-api' || newPlatform === 'azure_openai') {
       // 切换到 Gemini API 或 Azure OpenAI 时，使用 apikey 模式（直接创建，不需要 OAuth 流程）
       form.value.addType = 'apikey'
+    } else if (newPlatform === 'vertex_ai') {
+      // 切换到 Vertex AI 时，使用 manual 模式但有特殊的 JSON 文件上传界面
+      form.value.addType = 'manual'
     }
 
     // 平台变化时，清空分组选择

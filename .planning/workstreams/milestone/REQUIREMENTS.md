@@ -26,13 +26,13 @@ Requirements for Vertex AI integration. Each maps to roadmap phases.
 
 ### System Integration
 
-- [ ] **INTEGRATION-01**: Vertex AI accounts integrate with existing sticky session system
-- [ ] **INTEGRATION-02**: Vertex AI requests support concurrent request control and queueing
+- [x] **INTEGRATION-01**: Vertex AI accounts integrate with existing sticky session system
+- [x] **INTEGRATION-02**: Vertex AI requests support concurrent request control and queueing
 - [ ] **INTEGRATION-03**: System handles Google Cloud authentication errors gracefully
 - [x] **INTEGRATION-04**: System handles Vertex AI API errors and provides meaningful responses
 - [x] **INTEGRATION-05**: System exposes unified Claude API format for Vertex AI accounts
 - [x] **INTEGRATION-06**: System converts Claude API requests to Vertex AI format internally
-- [ ] **INTEGRATION-07**: Vertex AI accounts work with existing account scheduler system
+- [x] **INTEGRATION-07**: Vertex AI accounts work with existing account scheduler system
 
 ### Feature Support
 
@@ -126,13 +126,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MODELS-02      | Phase 5 | Complete |
 | MODELS-03      | Phase 5 | Complete |
 | MODELS-04      | Phase 5 | Complete |
-| INTEGRATION-01 | Phase 5 | Pending |
-| INTEGRATION-02 | Phase 5 | Pending |
+| INTEGRATION-01 | Phase 5 | Complete |
+| INTEGRATION-02 | Phase 5 | Complete |
 | INTEGRATION-03 | Phase 5 | Pending |
 | INTEGRATION-04 | Phase 5 | Complete |
 | INTEGRATION-05 | Phase 5 | Complete |
 | INTEGRATION-06 | Phase 5 | Complete |
-| INTEGRATION-07 | Phase 5 | Pending |
+| INTEGRATION-07 | Phase 5 | Complete |
 | FEATURES-01    | Phase 6 | Pending |
 | FEATURES-02    | Phase 6 | Pending |
 | FEATURES-03    | Phase 6 | Pending |

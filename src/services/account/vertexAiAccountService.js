@@ -171,15 +171,12 @@ async function createAccount(options = {}) {
   }
 
   try {
-    // Store account in Redis
-    await redis.hset(`${VERTEX_AI_ACCOUNT_KEY_PREFIX}${accountId}`, account)
-
-    // Add to index
-    await redis.sadd(VERTEX_AI_ACCOUNT_INDEX_KEY, accountId)
+    // Store account in Redis using the model method
+    await redis.setVertexAiAccount(accountId, account)
 
     // Add to shared accounts if accountType is shared
     if (accountType === 'shared') {
-      await redis.sadd(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
+      await redis.client.sadd(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
     }
 
     logger.info('Created Vertex AI account:', { accountId, name, projectId, location })
@@ -201,7 +198,7 @@ async function createAccount(options = {}) {
  */
 async function getAccount(accountId, includeCredentials = false) {
   try {
-    const account = await redis.hgetall(`${VERTEX_AI_ACCOUNT_KEY_PREFIX}${accountId}`)
+    const account = await redis.getVertexAiAccount(accountId)
 
     if (!account || !account.id) {
       return null
@@ -239,7 +236,7 @@ async function getAccount(accountId, includeCredentials = false) {
  * @returns {Promise<Object>} Updated account
  */
 async function updateAccount(accountId, updates) {
-  const account = await redis.hgetall(`${VERTEX_AI_ACCOUNT_KEY_PREFIX}${accountId}`)
+  const account = await redis.getVertexAiAccount(accountId)
 
   if (!account || !account.id) {
     throw new Error('Account not found')
@@ -261,14 +258,14 @@ async function updateAccount(accountId, updates) {
     updatedAt: new Date().toISOString()
   }
 
-  await redis.hset(`${VERTEX_AI_ACCOUNT_KEY_PREFIX}${accountId}`, updatedAccount)
+  await redis.setVertexAiAccount(accountId, updatedAccount)
 
   // Handle shared accounts set changes
   if (updates.accountType) {
     if (updates.accountType === 'shared') {
-      await redis.sadd(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
+      await redis.client.sadd(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
     } else {
-      await redis.srem(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
+      await redis.client.srem(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
     }
   }
 
@@ -286,14 +283,11 @@ async function updateAccount(accountId, updates) {
  */
 async function deleteAccount(accountId) {
   try {
-    // Remove from Redis
-    await redis.hdel(`${VERTEX_AI_ACCOUNT_KEY_PREFIX}${accountId}`)
-
-    // Remove from index
-    await redis.srem(VERTEX_AI_ACCOUNT_INDEX_KEY, accountId)
+    // Remove from Redis using the model method
+    await redis.deleteVertexAiAccount(accountId)
 
     // Remove from shared accounts
-    await redis.srem(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
+    await redis.client.srem(SHARED_VERTEX_AI_ACCOUNTS_KEY, accountId)
 
     logger.info('Deleted Vertex AI account:', { accountId })
     return true
@@ -309,17 +303,16 @@ async function deleteAccount(accountId) {
  */
 async function getAllAccounts() {
   try {
-    const accountIds = await redis.smembers(VERTEX_AI_ACCOUNT_INDEX_KEY)
-    const accounts = []
+    const accounts = await redis.getAllVertexAiAccounts()
 
-    for (const accountId of accountIds) {
-      const account = await getAccount(accountId, false) // No credentials
-      if (account) {
-        accounts.push(account)
+    // Remove encrypted credentials for security
+    return accounts.map(account => {
+      if (account.serviceAccountJson) {
+        const { serviceAccountJson: _, ...publicAccount } = account
+        return publicAccount
       }
-    }
-
-    return accounts
+      return account
+    })
   } catch (error) {
     logger.error('Failed to get all Vertex AI accounts:', error)
     return []
@@ -332,7 +325,7 @@ async function getAllAccounts() {
  */
 async function getSharedAccounts() {
   try {
-    const accountIds = await redis.smembers(SHARED_VERTEX_AI_ACCOUNTS_KEY)
+    const accountIds = await redis.client.smembers(SHARED_VERTEX_AI_ACCOUNTS_KEY)
     const accounts = []
 
     for (const accountId of accountIds) {
@@ -357,7 +350,7 @@ async function getSharedAccounts() {
 async function selectAvailableAccount(sessionId) {
   try {
     // Check for existing session mapping
-    const mappedAccountId = await redis.get(`${VERTEX_AI_SESSION_MAPPING_PREFIX}${sessionId}`)
+    const mappedAccountId = await redis.client.get(`${VERTEX_AI_SESSION_MAPPING_PREFIX}${sessionId}`)
 
     if (mappedAccountId) {
       const account = await getAccount(mappedAccountId, true) // With credentials
@@ -381,7 +374,7 @@ async function selectAvailableAccount(sessionId) {
     const accountWithCredentials = await getAccount(selectedAccount.id, true)
 
     // Store session mapping
-    await redis.setex(`${VERTEX_AI_SESSION_MAPPING_PREFIX}${sessionId}`, 3600, selectedAccount.id)
+    await redis.client.setex(`${VERTEX_AI_SESSION_MAPPING_PREFIX}${sessionId}`, 3600, selectedAccount.id)
 
     return accountWithCredentials
   } catch (error) {

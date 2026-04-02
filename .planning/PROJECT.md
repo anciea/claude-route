@@ -13,6 +13,7 @@ Clients can access Claude models through Google Cloud Vertex AI infrastructure u
 **Goal:** Add Google Cloud Vertex AI as a new account type with full feature parity and enterprise integration
 
 **Target features:**
+
 - Vertex AI account type with Service Account JSON authentication
 - Support for Claude 4.6 series models (Opus 4.6, Sonnet 4.6, Haiku 4.5)
 - Streaming response support with real-time usage capture

@@ -385,6 +385,43 @@ class PricingService {
       }
     }
 
+    // 对于Vertex AI模型，处理区域前缀和变体匹配
+    if (
+      modelName.includes('vertex') ||
+      modelName.includes('claude-opus-4-6') ||
+      modelName.includes('claude-sonnet-4-6') ||
+      modelName.includes('claude-haiku-4-5')
+    ) {
+      // 移除Vertex AI区域前缀（如 us-central1.）
+      const withoutVertexRegion = modelName.replace(/^[a-z]+-[a-z]+\d*\./, '')
+      if (this.pricingData[withoutVertexRegion]) {
+        logger.debug(
+          `💰 Found pricing for ${modelName} by removing Vertex AI region prefix: ${withoutVertexRegion}`
+        )
+        return this.pricingData[withoutVertexRegion]
+      }
+
+      // 标准化Vertex AI Claude模型名称映射
+      const vertexModelMappings = {
+        'claude-opus-4-6': 'claude-opus-4-6',
+        'claude-sonnet-4-6': 'claude-sonnet-4-6',
+        'claude-haiku-4-5': 'claude-haiku-4-5',
+        // 处理Partner Model格式
+        'claude-3-opus@20240229': 'claude-opus-4-6',
+        'claude-3-sonnet@20240229': 'claude-sonnet-4-6',
+        'claude-3-haiku@20240307': 'claude-haiku-4-5'
+      }
+
+      const normalizedModel =
+        vertexModelMappings[withoutVertexRegion] || vertexModelMappings[modelName]
+      if (normalizedModel && this.pricingData[normalizedModel]) {
+        logger.debug(
+          `💰 Found pricing for ${modelName} using Vertex AI model mapping: ${normalizedModel}`
+        )
+        return this.pricingData[normalizedModel]
+      }
+    }
+
     // 尝试模糊匹配（处理版本号等变化）
     const normalizedModel = modelName.toLowerCase().replace(/[_-]/g, '')
 

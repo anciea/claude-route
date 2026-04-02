@@ -8,6 +8,7 @@ const {
   handleStandardStreamGenerateContent: geminiHandleStreamGenerateContent
 } = require('../handlers/geminiHandlers')
 const vertexRelayService = require('../services/relay/vertexRelayService')
+const vertexAiAccountService = require('../services/account/vertexAiAccountService')
 const openaiRoutes = require('./openaiRoutes')
 const { CODEX_CLI_INSTRUCTIONS } = require('./openaiRoutes')
 const apiKeyService = require('../services/apiKeyService')
@@ -347,7 +348,21 @@ async function routeToBackend(req, res, requestedModel) {
       // Extract request parameters
       const { messages, model, temperature, max_tokens: maxTokens, stream } = req.body
 
-      // Call Vertex AI relay service directly
+      // Select an available Vertex AI account
+      const sessionId = req.apiKey.id // Use API key ID as session ID for sticky sessions
+      const account = await vertexAiAccountService.selectAvailableAccount(sessionId)
+
+      if (!account) {
+        return res.status(503).json({
+          error: {
+            message: `No available Vertex AI accounts support the requested model: ${model}`,
+            type: 'service_unavailable',
+            code: 'no_available_accounts'
+          }
+        })
+      }
+
+      // Call Vertex AI relay service with selected account
       const result = await vertexRelayService.sendVertexRequest({
         messages,
         model,
@@ -356,7 +371,7 @@ async function routeToBackend(req, res, requestedModel) {
         stream,
         apiKeyId: req.apiKey.id,
         signal: req.signal,
-        accountId: null // Will be selected by service
+        account // Pass the selected account directly
       })
 
       if (stream) {
@@ -426,6 +441,38 @@ async function routeToBackend(req, res, requestedModel) {
     })
   }
 }
+
+// 🔄 Claude API 原生的 messages 端点（智能后端路由，支持 Vertex AI）
+router.post('/v1/messages', authenticateApiKey, async (req, res) => {
+  try {
+    // 验证必需参数
+    if (!req.body.messages || !Array.isArray(req.body.messages) || req.body.messages.length === 0) {
+      return res.status(400).json({
+        error: {
+          message: 'Messages array is required and cannot be empty',
+          type: 'invalid_request_error',
+          code: 'invalid_request'
+        }
+      })
+    }
+
+    const requestedModel = req.body.model || 'claude-3-5-sonnet-20241022'
+
+    // 调用统一后端路由处理器
+    await routeToBackend(req, res, requestedModel)
+  } catch (error) {
+    logger.error('Unified messages route error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: {
+          message: 'Internal server error',
+          type: 'api_error',
+          code: 'internal_server_error'
+        }
+      })
+    }
+  }
+})
 
 // 🔄 OpenAI 兼容的 chat/completions 端点（智能后端路由）
 router.post('/v1/chat/completions', authenticateApiKey, async (req, res) => {

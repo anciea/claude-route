@@ -608,6 +608,19 @@
                       >
                     </div>
                     <div
+                      v-else-if="account.platform === 'vertex_ai'"
+                      class="flex items-center gap-1.5 rounded-lg border border-green-200 bg-gradient-to-r from-green-100 to-blue-100 px-2.5 py-1 dark:border-green-700 dark:from-green-900/20 dark:to-blue-900/20"
+                    >
+                      <i class="fab fa-google text-xs text-green-700 dark:text-green-400" />
+                      <span class="text-xs font-semibold text-green-800 dark:text-green-300"
+                        >Vertex AI</span
+                      >
+                      <span class="mx-1 h-4 w-px bg-green-300 dark:bg-green-600" />
+                      <span class="text-xs font-medium text-green-700 dark:text-green-400"
+                        >Service Account</span
+                      >
+                    </div>
+                    <div
                       v-else-if="account.platform === 'openai-responses'"
                       class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-green-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-green-900/20"
                     >
@@ -2466,11 +2479,12 @@ const platformHierarchy = [
   },
   {
     value: 'group-gemini',
-    label: 'Gemini（全部）',
+    label: 'Google Cloud（全部）',
     icon: 'fab fa-google',
     children: [
       { value: 'gemini', label: 'Gemini OAuth', icon: 'fab fa-google' },
-      { value: 'gemini-api', label: 'Gemini API', icon: 'fa-key' }
+      { value: 'gemini-api', label: 'Gemini API', icon: 'fa-key' },
+      { value: 'vertex_ai', label: 'Vertex AI', icon: 'fab fa-google' }
     ]
   },
   {
@@ -2500,7 +2514,8 @@ const platformRequestHandlers = {
   'openai-responses': () => httpApis.getOpenAIResponsesAccountsApi(),
   ccr: () => httpApis.getCcrAccountsApi(),
   droid: () => httpApis.getDroidAccountsApi(),
-  'gemini-api': () => httpApis.getGeminiApiAccountsApi()
+  'gemini-api': () => httpApis.getGeminiApiAccountsApi(),
+  vertex_ai: () => httpApis.getVertexAiAccountsApi()
 }
 
 const allPlatformKeys = Object.keys(platformRequestHandlers)
@@ -3424,6 +3439,14 @@ const loadAccounts = async (forceReload = false) => {
           const items = list.map((acc) => {
             const boundApiKeysCount = counts.geminiAccountId?.[`api:${acc.id}`] || 0
             return { ...acc, platform: 'gemini-api', boundApiKeysCount }
+          })
+          allAccounts.push(...items)
+          break
+        }
+        case 'vertex_ai': {
+          const items = list.map((acc) => {
+            const boundApiKeysCount = counts.vertexAiAccountId?.[acc.id] || 0
+            return { ...acc, platform: 'vertex_ai', boundApiKeysCount }
           })
           allAccounts.push(...items)
           break

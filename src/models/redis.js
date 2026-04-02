@@ -2441,6 +2441,49 @@ class RedisClient {
     return await this.client.del(key)
   }
 
+  // 🔥 Vertex AI 账户管理
+  async setVertexAiAccount(accountId, accountData) {
+    const key = `vertex_ai:account:${accountId}`
+    await this.client.hset(key, accountData)
+    await this.client.sadd('vertex_ai:account:index', accountId)
+    await this.client.del('vertex_ai:account:index:empty')
+  }
+
+  async getVertexAiAccount(accountId) {
+    const key = `vertex_ai:account:${accountId}`
+    return await this.client.hgetall(key)
+  }
+
+  async getAllVertexAiAccounts() {
+    const accountIds = await this.getAllIdsByIndex(
+      'vertex_ai:account:index',
+      'vertex_ai:account:*',
+      /^vertex_ai:account:(.+)$/
+    )
+    if (accountIds.length === 0) {
+      return []
+    }
+
+    const keys = accountIds.map((id) => `vertex_ai:account:${id}`)
+    const pipeline = this.client.pipeline()
+    keys.forEach((key) => pipeline.hgetall(key))
+    const results = await pipeline.exec()
+
+    const accounts = []
+    results.forEach(([err, accountData], index) => {
+      if (!err && accountData && Object.keys(accountData).length > 0) {
+        accounts.push({ id: accountIds[index], ...accountData })
+      }
+    })
+    return accounts
+  }
+
+  async deleteVertexAiAccount(accountId) {
+    const key = `vertex_ai:account:${accountId}`
+    await this.client.srem('vertex_ai:account:index', accountId)
+    return await this.client.del(key)
+  }
+
   async setOpenAiAccount(accountId, accountData) {
     const key = `openai:account:${accountId}`
     await this.client.hset(key, accountData)
