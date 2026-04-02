@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 04-vertex-ai-account-foundation-02-PLAN.md
-last_updated: "2026-04-02T01:45:18.442Z"
-last_activity: 2026-04-01 — Roadmap created for v2.0 Vertex AI integration
+status: executing
+stopped_at: Completed 05-model-support-core-integration-01-PLAN.md
+last_updated: "2026-04-02T02:42:41.465Z"
+last_activity: 2026-04-02
 progress:
   total_phases: 3
   completed_phases: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Clients can access Claude models through Google Cloud Vertex AI infrastructure using the same unified API and account management experience as other AI providers, with enterprise-grade authentication and billing through Google Cloud.
-**Current focus:** Phase 4 (Vertex AI Account Foundation)
+**Current focus:** Phase 5 — Model Support & Core Integration
 
 ## Current Position
 
-Phase: 4 of 6 (Vertex AI Account Foundation)
-Plan: Ready to plan
-Status: Ready to plan
-Last activity: 2026-04-01 — Roadmap created for v2.0 Vertex AI integration
+Phase: 5 (Model Support & Core Integration) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-04-02
 
 Progress: [███░░░░░░░] 50% (previous milestone complete)
 
@@ -58,6 +58,7 @@ Progress: [███░░░░░░░] 50% (previous milestone complete)
 
 _Updated after each plan completion_
 | Phase 04-vertex-ai-account-foundation P02 | 4 | 2 tasks | 2 files |
+| Phase 05-model-support-core-integration P01 | 6 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,7 @@ Recent decisions affecting current work:
 - [Phase 3]: Google OAuth2 completely replaced LDAP authentication
 - [v2.0]: Unified Claude API format chosen over native Vertex AI format
 - [v2.0]: Service account JSON authentication selected over IAM integration
+- [Phase 05-model-support-core-integration]: Claude 4.6 model mapping to Vertex AI Partner Model format with anthropic_version header requirement
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T01:45:18.439Z
-Stopped at: Completed 04-vertex-ai-account-foundation-02-PLAN.md
+Last session: 2026-04-02T02:42:41.463Z
+Stopped at: Completed 05-model-support-core-integration-01-PLAN.md
 Resume file: None
