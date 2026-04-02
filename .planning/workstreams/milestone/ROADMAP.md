@@ -78,24 +78,15 @@ Plans:
   3. Admin interface displays comprehensive Vertex AI account health and usage metrics
   4. Vertex AI usage integrates properly with existing statistics and reporting systems
 
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 
-- [ ] 01-PLAN.md — Vertex AI streaming response support with real-time usage token capture
-- [ ] 02-PLAN.md — Usage statistics capture and cost calculation integration with pricing service
-- [ ] 03-PLAN.md — Admin interface components for Vertex AI account management and monitoring
-- [ ] 04-PLAN.md — Statistics system integration for unified usage tracking and reporting
-
----
-
-## Progress Table
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 4. Vertex AI Account Foundation | 2/2 | Complete | 2026-04-02 |
-| 5. Model Support & Core Integration | 0/3 | Planning complete | - |
-| 6. Advanced Features & Admin Interface | 0/4 | Planning complete | - |
+- [ ] 06-01-PLAN.md — Vertex AI streaming response support with real-time usage token capture
+- [ ] 06-02-PLAN.md — Usage statistics capture and cost calculation integration with pricing service
+- [ ] 06-03-PLAN.md — Admin interface components for Vertex AI account management and monitoring
+- [ ] 06-03B-PLAN.md — Admin interface routing and statistics integration
+- [ ] 06-04-PLAN.md — Statistics system integration for unified usage tracking and reporting
 
 ---
 
@@ -127,12 +118,64 @@ Plans:
 
 ### User Experience Metrics
 
-- Unified API experience identical to other Claude providers
-- Account management workflow consistent with existing providers ✓ ACHIEVED
-- Error messages clear and actionable for Google Cloud issues
-- Admin interface provides sufficient Vertex AI-specific monitoring
+- Admin interface response time < 500ms for Vertex AI account operations
+- Zero breaking changes to existing Claude API consumers
+- Seamless failover between providers when Vertex AI unavailable
+
+### Business Metrics
+
+- 100% feature parity between Vertex AI and existing providers
+- Enterprise client adoption of Vertex AI accounts within 30 days
+- Cost tracking accuracy enables precise billing for Vertex AI usage
 
 ---
 
-*Roadmap created: 2026-04-01*
-*Last updated: 2026-04-02 after Phase 5 planning*
+## Requirements
+
+### Account Management (ACCOUNT-01 through ACCOUNT-07)
+
+- **ACCOUNT-01**: Create Vertex AI accounts with service account JSON upload ✓ COMPLETE
+- **ACCOUNT-02**: Secure encryption of service account credentials in Redis ✓ COMPLETE
+- **ACCOUNT-03**: Service account JSON validation and Google Cloud API testing ✓ COMPLETE
+- **ACCOUNT-04**: Access token generation with proper scope and expiration ✓ COMPLETE
+- **ACCOUNT-05**: Account status management (active/inactive/error states) ✓ COMPLETE
+- **ACCOUNT-06**: Admin interface integration with existing account management ✓ COMPLETE
+- **ACCOUNT-07**: Proper error handling and user feedback for account operations ✓ COMPLETE
+
+### Model Support (MODELS-01 through MODELS-04)
+
+- **MODELS-01**: Support for Claude 4.6 Opus model through Vertex AI
+- **MODELS-02**: Support for Claude 4.6 Sonnet model through Vertex AI
+- **MODELS-03**: Model name mapping between Claude API and Vertex AI format
+- **MODELS-04**: Model availability detection and graceful degradation
+
+### Core Integration (INTEGRATION-01 through INTEGRATION-07)
+
+- **INTEGRATION-01**: Claude API to Vertex AI format conversion for requests and responses
+- **INTEGRATION-02**: Vertex AI relay service integration with existing scheduling system
+- **INTEGRATION-03**: Sticky session support for maintaining conversation context
+- **INTEGRATION-04**: Concurrent request limits and queueing for Vertex AI accounts
+- **INTEGRATION-05**: Error handling and retry logic for Vertex AI API failures
+- **INTEGRATION-06**: Authentication error handling and token refresh automation
+- **INTEGRATION-07**: Route integration with existing Claude API endpoints
+
+### Advanced Features (FEATURES-01 through FEATURES-06)
+
+- **FEATURES-01**: Streaming response support with real-time token capture
+- **FEATURES-02**: Usage statistics capture and accurate token counting
+- **FEATURES-03**: Cost calculation integration with pricing service
+- **FEATURES-04**: Admin interface for Vertex AI account monitoring
+- **FEATURES-05**: Frontend statistics integration and display
+- **FEATURES-06**: Statistics system integration for unified reporting
+
+---
+
+## Progress Table
+
+| Phase | Start | Status | Plans | Wave Structure |
+|-------|-------|--------|-------|----------------|
+| 4 | 2026-04-01 | ✅ **COMPLETE** | 2/2 | Wave 1: 01, 02 |
+| 5 | TBD | ⏳ Pending | 0/3 | Wave 1: 01; Wave 2: 02; Wave 3: 03 |
+| 6 | TBD | 📝 **PLANNED** | 5/5 | Wave 1: 01; Wave 2: 02; Wave 3: 03; Wave 4: 03B; Wave 5: 04 |
+
+**Next Action**: Execute Phase 5 → `/gsd:execute-phase 05`
