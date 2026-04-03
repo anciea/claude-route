@@ -24,12 +24,22 @@ const MODEL_MAPPING = {
  * @returns {Object} Vertex AI format request body
  */
 function convertClaudeToVertex(messages, options = {}) {
-  const { model: _model = 'claude-opus-4-6', temperature = 0.7, max_tokens = 4096 } = options
+  const {
+    model: _model = 'claude-opus-4-6',
+    temperature = 0.7,
+    max_tokens = 4096,
+    stream = false
+  } = options
 
   const vertexRequest = {
     anthropic_version: 'vertex-2023-10-16',
     max_tokens,
     temperature
+  }
+
+  // Include stream flag — required by Anthropic API on Vertex AI
+  if (stream) {
+    vertexRequest.stream = true
   }
 
   // Note: model is specified in URL path, not in request body
@@ -134,9 +144,18 @@ async function* handleVertexStream(response, model, apiKeyId, accountId = null) 
   let inputTokens = 0
   let outputTokens = 0
 
+  let chunkCount = 0
+
   try {
     for await (const chunk of response.data) {
-      buffer += chunk.toString()
+      const chunkStr = chunk.toString()
+      chunkCount++
+      if (chunkCount <= 3) {
+        logger.debug(
+          `🔍 Vertex AI stream chunk #${chunkCount} (${chunkStr.length} bytes): ${chunkStr.substring(0, 200)}`
+        )
+      }
+      buffer += chunkStr
 
       // Process complete lines from buffer
       const lines = buffer.split('\n')
@@ -190,6 +209,10 @@ async function* handleVertexStream(response, model, apiKeyId, accountId = null) 
       pendingLines = []
       yield eventText
     }
+
+    logger.debug(
+      `🔍 Vertex AI stream ended: ${chunkCount} chunks received, pendingLines=${pendingLines.length}, buffer="${buffer.substring(0, 100)}"`
+    )
 
     // Record usage after stream completes
     if (apiKeyId && (inputTokens > 0 || outputTokens > 0)) {
@@ -265,7 +288,8 @@ async function sendVertexRequest({
     const vertexRequest = convertClaudeToVertex(messages, {
       model,
       temperature,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
+      stream
     })
 
     // Build API endpoint URL
