@@ -390,7 +390,7 @@ async function routeToBackend(req, res, requestedModel) {
               if (req.signal?.aborted) {
                 break
               }
-              res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+              res.write(chunk)
             }
           } catch (streamError) {
             logger.error('❌ Vertex AI streaming error:', streamError)
