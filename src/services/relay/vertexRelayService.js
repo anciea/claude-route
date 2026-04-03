@@ -5,7 +5,7 @@ const config = require('../../../config/config')
 const apiKeyService = require('../apiKeyService')
 const vertexAiAccountService = require('../account/vertexAiAccountService')
 const pricingService = require('../pricingService')
-const { convertVertexStreamToClaudeFormat, getCurrentUsage, resetUsage } = require('../../utils/vertexStreamHandler')
+const { getCurrentUsage } = require('../../utils/vertexStreamHandler')
 
 // Vertex AI Partner Model API base URL
 const VERTEX_AI_BASE_URL = 'https://aiplatform.googleapis.com/v1'
@@ -24,11 +24,7 @@ const MODEL_MAPPING = {
  * @returns {Object} Vertex AI format request body
  */
 function convertClaudeToVertex(messages, options = {}) {
-  const {
-    model = 'claude-opus-4-6',
-    temperature = 0.7,
-    max_tokens = 4096
-  } = options
+  const { model: _model = 'claude-opus-4-6', temperature = 0.7, max_tokens = 4096 } = options
 
   const vertexRequest = {
     anthropic_version: 'vertex-2023-10-16',
@@ -70,8 +66,8 @@ function convertClaudeToVertex(messages, options = {}) {
  * @param {boolean} stream - Whether this is a streaming response
  * @returns {Object} Claude API format response
  */
-function convertVertexResponse(vertexResponse, model, stream = false) {
-  if (stream) {
+function convertVertexResponse(vertexResponse, model, isStream = false) {
+  if (isStream) {
     // Handle streaming response format
     const content = vertexResponse.content?.[0]
     if (!content?.text) {
@@ -88,10 +84,10 @@ function convertVertexResponse(vertexResponse, model, stream = false) {
     }
   } else {
     // Handle non-streaming response format
-    const responseId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const responseId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
     const content = vertexResponse.content || []
-    const claudeContent = content.map(item => ({
+    const claudeContent = content.map((item) => ({
       type: 'text',
       text: item.text || ''
     }))
@@ -112,7 +108,19 @@ function convertVertexResponse(vertexResponse, model, stream = false) {
 }
 
 /**
- * Handle Vertex AI streaming response with enhanced stream handler
+ * Handle Vertex AI streaming response for Claude Partner Models.
+ *
+ * The streamRawPredict endpoint for Anthropic/Claude partner models returns
+ * Claude-native SSE format (identical to the official Anthropic API):
+ *   event: message_start
+ *   data: {"type":"message_start","message":{...}}
+ *
+ *   event: content_block_delta
+ *   data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
+ *
+ * This function passes the raw SSE events through unchanged, and extracts
+ * usage data from message_delta events for cost tracking.
+ *
  * @param {Object} response - Axios response with stream
  * @param {string} model - Model name
  * @param {string} apiKeyId - API Key ID for usage tracking
@@ -121,134 +129,80 @@ function convertVertexResponse(vertexResponse, model, stream = false) {
  */
 async function* handleVertexStream(response, model, apiKeyId, accountId = null) {
   let buffer = ''
-  let isFirstChunk = true
+  // Accumulate SSE event lines (event: + data: pairs) to yield as complete events
+  let pendingLines = []
+  let inputTokens = 0
+  let outputTokens = 0
 
   try {
-    // Reset usage accumulator for this stream
-    resetUsage()
-
     for await (const chunk of response.data) {
       buffer += chunk.toString()
 
       // Process complete lines from buffer
       const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // Keep incomplete line
+      buffer = lines.pop() || '' // Keep incomplete (no trailing newline) line
 
       for (const line of lines) {
-        if (!line.trim()) continue
+        const trimmed = line.trimEnd()
 
-        // Handle SSE format: "data: {...}"
-        let jsonData = line
-        if (line.startsWith('data: ')) {
-          jsonData = line.substring(6).trim()
-        }
+        if (trimmed === '') {
+          // Empty line = SSE event boundary: flush pending lines as one event
+          if (pendingLines.length > 0) {
+            const eventText = `${pendingLines.join('\n')}\n\n`
+            pendingLines = []
 
-        if (!jsonData || jsonData === '[DONE]') continue
-
-        try {
-          const vertexChunk = JSON.parse(jsonData)
-
-          // Convert using new stream handler
-          const sseEvents = convertVertexStreamToClaudeFormat(vertexChunk, isFirstChunk)
-          if (sseEvents) {
-            yield sseEvents
-          }
-
-          isFirstChunk = false
-
-          // Check for completion in candidates
-          if (vertexChunk.candidates && vertexChunk.candidates.length > 0) {
-            const candidate = vertexChunk.candidates[0]
-            const finishReason = candidate.finish_reason || candidate.finishReason
-
-            if (finishReason) {
-              // Get final usage statistics
-              const finalUsage = getCurrentUsage()
-
-              // Calculate cost for streaming response
-              let streamCostData = null
-              if (finalUsage.input_tokens > 0 || finalUsage.output_tokens > 0) {
-                const usage = {
-                  input_tokens: finalUsage.input_tokens,
-                  output_tokens: finalUsage.output_tokens,
-                  model: model
+            // Extract usage from message_delta events for cost tracking
+            for (const l of eventText.split('\n')) {
+              if (l.startsWith('data: ')) {
+                const jsonStr = l.substring(6).trim()
+                if (jsonStr && jsonStr !== '[DONE]') {
+                  try {
+                    const parsed = JSON.parse(jsonStr)
+                    if (parsed.type === 'message_delta' && parsed.usage) {
+                      outputTokens = parsed.usage.output_tokens || outputTokens
+                    }
+                    if (parsed.type === 'message_start' && parsed.message?.usage) {
+                      inputTokens = parsed.message.usage.input_tokens || inputTokens
+                    }
+                  } catch (_e) {
+                    // Not valid JSON — ignore for usage extraction
+                  }
                 }
-
-                streamCostData = pricingService.calculateCost(usage, model)
-
-                logger.debug(`💰 Vertex AI streaming cost calculation for ${model}: ${JSON.stringify({
-                  usage,
-                  cost: streamCostData.totalCost,
-                  hasPricing: streamCostData.hasPricing
-                })}`)
               }
-
-              // Record usage if we have valid data
-              if (apiKeyId && (finalUsage.input_tokens > 0 || finalUsage.output_tokens > 0)) {
-                await apiKeyService.recordUsage(
-                  apiKeyId,
-                  finalUsage.input_tokens,
-                  finalUsage.output_tokens,
-                  0, // cacheCreateTokens
-                  0, // cacheReadTokens
-                  model,
-                  accountId,
-                  'vertex-ai'
-                ).catch((error) => {
-                  logger.error('❌ Failed to record Vertex AI usage:', error)
-                })
-              }
-
-              return
             }
+
+            yield eventText
           }
-        } catch (e) {
-          logger.debug('Error parsing Vertex AI JSON line:', e.message, 'Line:', jsonData)
-
-          // Yield error event
-          yield `event: error\ndata: ${JSON.stringify({
-            type: 'error',
-            error: {
-              type: 'parse_error',
-              message: `Failed to parse Vertex AI response: ${e.message}`
-            }
-          })}\n\n`
+        } else {
+          // Accumulate lines that form one SSE event
+          pendingLines.push(trimmed)
         }
       }
     }
 
-    // Process remaining buffer
+    // Flush any remaining buffered content
     if (buffer.trim()) {
-      try {
-        let jsonData = buffer.trim()
-        if (jsonData.startsWith('data: ')) {
-          jsonData = jsonData.substring(6).trim()
-        }
-
-        if (jsonData && jsonData !== '[DONE]') {
-          const vertexChunk = JSON.parse(jsonData)
-          const sseEvents = convertVertexStreamToClaudeFormat(vertexChunk, false)
-          if (sseEvents) {
-            yield sseEvents
-          }
-        }
-      } catch (e) {
-        logger.debug('Error parsing final buffer:', e.message)
-      }
+      pendingLines.push(buffer.trim())
+      buffer = ''
+    }
+    if (pendingLines.length > 0) {
+      const eventText = `${pendingLines.join('\n')}\n\n`
+      pendingLines = []
+      yield eventText
     }
 
-    // Ensure completion events are sent if not already sent
-    if (!isFirstChunk) {
-      yield `event: content_block_stop\ndata: ${JSON.stringify({
-        type: 'content_block_stop',
-        index: 0
-      })}\n\n`
+    // Record usage after stream completes
+    if (apiKeyId && (inputTokens > 0 || outputTokens > 0)) {
+      await apiKeyService
+        .recordUsage(apiKeyId, inputTokens, outputTokens, 0, 0, model, accountId, 'vertex-ai')
+        .catch((error) => {
+          logger.error('❌ Failed to record Vertex AI usage:', error)
+        })
 
-      yield `event: message_stop\ndata: ${JSON.stringify({
-        type: 'message_stop'
-      })}\n\n`
+      logger.debug(
+        `💰 Vertex AI stream completed for ${model}: input=${inputTokens}, output=${outputTokens}`
+      )
     }
-
   } catch (error) {
     // Handle AbortController and client disconnection
     if (error.name === 'CanceledError' || error.code === 'ECONNABORTED') {
@@ -323,7 +277,7 @@ async function sendVertexRequest({
       method: 'POST',
       url: apiUrl,
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'User-Agent': 'claude-relay-service/1.0.0'
       },
@@ -366,13 +320,17 @@ async function sendVertexRequest({
         // Handle authentication errors with exponential backoff
         if (error.response?.status === 401 && retryCount < maxRetries) {
           const backoffDelay = Math.pow(2, retryCount) * 1000 // Exponential backoff
-          logger.warn(`Vertex AI authentication error, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`)
+          logger.warn(
+            `Vertex AI authentication error, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`
+          )
 
-          await new Promise(resolve => setTimeout(resolve, backoffDelay))
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
 
           // Refresh access token
           try {
-            const { accessToken: newAccessToken } = await vertexAiAccountService.getAccessToken(account.id)
+            const { accessToken: newAccessToken } = await vertexAiAccountService.getAccessToken(
+              account.id
+            )
             axiosConfig.headers.Authorization = `Bearer ${newAccessToken}`
             retryCount++
             continue
@@ -401,33 +359,37 @@ async function sendVertexRequest({
         const usage = {
           input_tokens: claudeResponse.usage.input_tokens || 0,
           output_tokens: claudeResponse.usage.output_tokens || 0,
-          model: model
+          model
         }
 
         costData = pricingService.calculateCost(usage, model)
         duration = Date.now() - startTime
 
-        logger.debug(`💰 Vertex AI cost calculation for ${model}: ${JSON.stringify({
-          usage,
-          cost: costData.totalCost,
-          hasPricing: costData.hasPricing
-        })}`)
+        logger.debug(
+          `💰 Vertex AI cost calculation for ${model}: ${JSON.stringify({
+            usage,
+            cost: costData.totalCost,
+            hasPricing: costData.hasPricing
+          })}`
+        )
       }
 
       // Record usage
       if (apiKeyId && claudeResponse.usage) {
-        await apiKeyService.recordUsage(
-          apiKeyId,
-          claudeResponse.usage.input_tokens || 0,
-          claudeResponse.usage.output_tokens || 0,
-          0, // cacheCreateTokens
-          0, // cacheReadTokens
-          model,
-          accountId,
-          'vertex-ai'
-        ).catch((error) => {
-          logger.error('❌ Failed to record Vertex AI usage:', error)
-        })
+        await apiKeyService
+          .recordUsage(
+            apiKeyId,
+            claudeResponse.usage.input_tokens || 0,
+            claudeResponse.usage.output_tokens || 0,
+            0, // cacheCreateTokens
+            0, // cacheReadTokens
+            model,
+            accountId,
+            'vertex-ai'
+          )
+          .catch((error) => {
+            logger.error('❌ Failed to record Vertex AI usage:', error)
+          })
       }
 
       // Return enhanced response with cost data
@@ -436,11 +398,10 @@ async function sendVertexRequest({
         success: true,
         usage: claudeResponse.usage,
         cost: costData,
-        model: model,
-        duration: duration
+        model,
+        duration
       }
     }
-
   } catch (error) {
     // Check if request was aborted
     if (error.name === 'CanceledError' || error.code === 'ECONNABORTED') {
@@ -459,7 +420,7 @@ async function sendVertexRequest({
 
     // Convert Vertex AI errors to Claude format
     if (error.response) {
-      const status = error.response.status
+      const { status } = error.response
       const errorData = error.response.data?.error || error.response.data
 
       let claudeError = {
@@ -523,7 +484,7 @@ async function sendVertexRequest({
  * @param {Object} options - Streaming options
  * @returns {Promise<Object>} Usage statistics
  */
-async function stream({
+async function streamResponse({
   res,
   messages,
   model = 'claude-opus-4-6',
@@ -585,19 +546,18 @@ async function stream({
       const usageForCosting = {
         input_tokens: usage.input_tokens,
         output_tokens: usage.output_tokens,
-        model: model
+        model
       }
       costData = pricingService.calculateCost(usageForCosting, model)
     }
 
     return {
       success: true,
-      usage: usage,
+      usage,
       cost: costData,
-      model: model,
+      model,
       duration: 0 // Stream duration calculated elsewhere
     }
-
   } catch (error) {
     // Handle AbortController cancellation
     if (error.name === 'CanceledError' || error.code === 'ECONNABORTED') {
@@ -614,7 +574,7 @@ async function stream({
         success: false,
         usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
         cost: null,
-        model: model,
+        model,
         duration: 0
       }
     }
@@ -627,13 +587,15 @@ async function stream({
       res.setHeader('Connection', 'keep-alive')
     }
 
-    res.write(`event: error\ndata: ${JSON.stringify({
-      type: 'error',
-      error: {
-        type: error.error?.type || 'stream_error',
-        message: error.message
-      }
-    })}\n\n`)
+    res.write(
+      `event: error\ndata: ${JSON.stringify({
+        type: 'error',
+        error: {
+          type: error.error?.type || 'stream_error',
+          message: error.message
+        }
+      })}\n\n`
+    )
     res.write('data: [DONE]\n\n')
     res.end()
 
@@ -646,5 +608,5 @@ module.exports = {
   convertClaudeToVertex,
   convertVertexResponse,
   handleVertexStream,
-  stream
+  stream: streamResponse
 }

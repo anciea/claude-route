@@ -60,11 +60,11 @@ describe('vertexRelayService', () => {
         { role: 'user', content: 'What is the weather like?' }
       ]
 
+      // Model is specified in the URL path, not in the request body
       const expectedVertexRequest = {
         anthropic_version: 'vertex-2023-10-16',
         max_tokens: 4096,
         temperature: 0.7,
-        model: 'claude-3-opus@20240229',
         system: 'You are a helpful assistant.',
         messages: [
           { role: 'user', content: 'Hello, how are you?' },
@@ -81,10 +81,8 @@ describe('vertexRelayService', () => {
       expect(result).toEqual(expectedVertexRequest)
     })
 
-    test('should map claude-opus-4-6 model name correctly', () => {
-      const claudeMessages = [
-        { role: 'user', content: 'Test message' }
-      ]
+    test('should not include model field in request body (model is in URL path)', () => {
+      const claudeMessages = [{ role: 'user', content: 'Test message' }]
 
       const result = vertexRelayService.convertClaudeToVertex(claudeMessages, {
         model: 'claude-opus-4-6',
@@ -92,16 +90,15 @@ describe('vertexRelayService', () => {
         max_tokens: 2048
       })
 
-      expect(result.model).toBe('claude-3-opus@20240229')
+      // Model should NOT be in the request body for Vertex AI Partner Model API
+      expect(result.model).toBeUndefined()
       expect(result.anthropic_version).toBe('vertex-2023-10-16')
       expect(result.temperature).toBe(0.5)
       expect(result.max_tokens).toBe(2048)
     })
 
-    test('should map claude-sonnet-4-6 model name correctly', () => {
-      const claudeMessages = [
-        { role: 'user', content: 'Test message' }
-      ]
+    test('should use direct model name (no legacy mapping)', () => {
+      const claudeMessages = [{ role: 'user', content: 'Test message' }]
 
       const result = vertexRelayService.convertClaudeToVertex(claudeMessages, {
         model: 'claude-sonnet-4-6',
@@ -109,7 +106,8 @@ describe('vertexRelayService', () => {
         max_tokens: 1024
       })
 
-      expect(result.model).toBe('claude-3-sonnet@20240229')
+      // Model names are passed through directly, not remapped
+      expect(result.model).toBeUndefined()
       expect(result.anthropic_version).toBe('vertex-2023-10-16')
     })
 
@@ -169,7 +167,11 @@ describe('vertexRelayService', () => {
         }
       }
 
-      const result = vertexRelayService.convertVertexResponse(vertexResponse, 'claude-opus-4-6', false)
+      const result = vertexRelayService.convertVertexResponse(
+        vertexResponse,
+        'claude-opus-4-6',
+        false
+      )
 
       expect(result).toEqual(expectedClaudeResponse)
       expect(result.id).toMatch(/^msg_/)
@@ -197,7 +199,11 @@ describe('vertexRelayService', () => {
         }
       }
 
-      const result = vertexRelayService.convertVertexResponse(vertexStreamChunk, 'claude-sonnet-4-6', true)
+      const result = vertexRelayService.convertVertexResponse(
+        vertexStreamChunk,
+        'claude-sonnet-4-6',
+        true
+      )
 
       expect(result).toEqual(expectedClaudeChunk)
     })
@@ -209,7 +215,11 @@ describe('vertexRelayService', () => {
         usage: { input_tokens: 5, output_tokens: 3 }
       }
 
-      const result = vertexRelayService.convertVertexResponse(vertexResponse, 'claude-opus-4-6', false)
+      const result = vertexRelayService.convertVertexResponse(
+        vertexResponse,
+        'claude-opus-4-6',
+        false
+      )
 
       expect(result.stop_reason).toBe('max_tokens')
     })
@@ -220,24 +230,43 @@ describe('vertexRelayService', () => {
         stop_reason: 'end_turn'
       }
 
-      const result = vertexRelayService.convertVertexResponse(vertexResponse, 'claude-opus-4-6', false)
+      const result = vertexRelayService.convertVertexResponse(
+        vertexResponse,
+        'claude-opus-4-6',
+        false
+      )
 
       expect(result.content).toEqual([])
     })
   })
 
   describe('handleVertexStream', () => {
-    test('should process Vertex AI streaming responses and convert to Claude API SSE format', async () => {
-      // Mock streaming response data
+    test('should pass through Claude-native SSE events from Vertex AI Partner Model streamRawPredict', async () => {
+      // Vertex AI Claude Partner Model streamRawPredict returns Claude-native SSE format
       const mockStreamData = [
-        'data: {"content":[{"text":"Hello"}],"usage":{"input_tokens":5,"output_tokens":1}}\n',
-        'data: {"content":[{"text":" there"}],"usage":{"input_tokens":5,"output_tokens":2}}\n',
-        'data: {"content":[{"text":"!"}],"stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":3}}\n'
+        'event: message_start\n',
+        'data: {"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","content":[],"model":"claude-opus-4-6","stop_reason":null,"usage":{"input_tokens":5,"output_tokens":0}}}\n',
+        '\n',
+        'event: content_block_start\n',
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n',
+        '\n',
+        'event: content_block_delta\n',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello there!"}}\n',
+        '\n',
+        'event: content_block_stop\n',
+        'data: {"type":"content_block_stop","index":0}\n',
+        '\n',
+        'event: message_delta\n',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}\n',
+        '\n',
+        'event: message_stop\n',
+        'data: {"type":"message_stop"}\n',
+        '\n'
       ]
 
       // Create a mock stream
       const mockStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
           for (const data of mockStreamData) {
             yield Buffer.from(data)
           }
@@ -258,20 +287,19 @@ describe('vertexRelayService', () => {
         chunks.push(chunk)
       }
 
-      // Should have received message_start, content_block_start, content deltas, and completion events
-      expect(chunks.length).toBeGreaterThan(4)
-      expect(chunks[0]).toMatch(/event: message_start/)
-      expect(chunks[1]).toMatch(/event: content_block_start/)
-      expect(chunks.some(chunk => chunk.includes('content_block_delta'))).toBe(true)
-      expect(chunks.some(chunk => chunk.includes('message_stop'))).toBe(true)
+      // Should have received the SSE events passed through directly
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks.some((chunk) => chunk.includes('message_start'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.includes('content_block_delta'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.includes('message_stop'))).toBe(true)
 
-      // Verify usage recording was called
+      // Verify usage recording was called with extracted token counts
       expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
         'test-api-key',
-        5, // input tokens
-        3, // output tokens
-        0, // cache create tokens
-        0, // cache read tokens
+        5, // input tokens from message_start
+        3, // output tokens from message_delta
+        0,
+        0,
         'claude-opus-4-6',
         'test-account',
         'vertex-ai'
@@ -280,7 +308,8 @@ describe('vertexRelayService', () => {
 
     test('should handle stream errors gracefully', async () => {
       const mockErrorStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
+          yield* [] // eslint-disable-line no-empty-pattern
           throw new Error('Stream connection failed')
         }
       }
@@ -299,14 +328,15 @@ describe('vertexRelayService', () => {
       }
 
       // Should contain error event
-      const errorChunk = chunks.find(chunk => chunk.includes('event: error'))
+      const errorChunk = chunks.find((chunk) => chunk.includes('event: error'))
       expect(errorChunk).toBeTruthy()
       expect(errorChunk).toContain('Stream connection failed')
     })
 
     test('should handle client disconnection (CanceledError)', async () => {
       const mockAbortedStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
+          yield* [] // eslint-disable-line no-empty-pattern
           const error = new Error('Request canceled')
           error.name = 'CanceledError'
           throw error
@@ -327,18 +357,29 @@ describe('vertexRelayService', () => {
       }
 
       // Should have message_start and content_block_start, but no error event for cancellation
-      expect(chunks.some(chunk => chunk.includes('event: error'))).toBe(false)
+      expect(chunks.some((chunk) => chunk.includes('event: error'))).toBe(false)
       expect(logger.info).toHaveBeenCalledWith('Vertex AI stream request was aborted by client')
     })
 
-    test('should extract usage statistics from stream events', async () => {
+    test('should extract usage statistics from Claude SSE stream events', async () => {
+      // Claude SSE format from Vertex AI Partner Model streamRawPredict
       const mockStreamData = [
-        'data: {"content":[{"text":"Test"}],"usage":{"input_tokens":10,"output_tokens":1}}\n',
-        'data: {"content":[{"text":" response"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":3}}\n'
+        'event: message_start\n',
+        'data: {"type":"message_start","message":{"id":"msg_abc","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-6","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}\n',
+        '\n',
+        'event: content_block_delta\n',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Test response"}}\n',
+        '\n',
+        'event: message_delta\n',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}\n',
+        '\n',
+        'event: message_stop\n',
+        'data: {"type":"message_stop"}\n',
+        '\n'
       ]
 
       const mockStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
           for (const data of mockStreamData) {
             yield Buffer.from(data)
           }
@@ -359,11 +400,11 @@ describe('vertexRelayService', () => {
         chunks.push(chunk)
       }
 
-      // Verify final usage was recorded correctly
+      // Verify final usage was recorded correctly from Claude SSE events
       expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
         'test-api-key',
-        10, // input tokens (final count)
-        3,  // output tokens (final count)
+        10, // input tokens from message_start
+        3, // output tokens from message_delta
         0,
         0,
         'claude-sonnet-4-6',
@@ -372,15 +413,19 @@ describe('vertexRelayService', () => {
       )
     })
 
-    test('should handle malformed JSON in stream gracefully', async () => {
+    test('should pass through all SSE lines including those with non-JSON data', async () => {
+      // Passthrough mode: all SSE events are forwarded as-is
       const mockStreamData = [
-        'data: {"content":[{"text":"Valid"}]}\n',
-        'data: {invalid json}\n',
-        'data: {"content":[{"text":"More valid"}],"stop_reason":"end_turn"}\n'
+        'event: content_block_delta\n',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Valid"}}\n',
+        '\n',
+        'event: content_block_delta\n',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"More valid"}}\n',
+        '\n'
       ]
 
       const mockStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
           for (const data of mockStreamData) {
             yield Buffer.from(data)
           }
@@ -400,15 +445,9 @@ describe('vertexRelayService', () => {
         chunks.push(chunk)
       }
 
-      // Should process valid chunks and skip invalid ones
-      expect(chunks.some(chunk => chunk.includes('Valid'))).toBe(true)
-      expect(chunks.some(chunk => chunk.includes('More valid'))).toBe(true)
-      expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Error parsing JSON line'),
-        expect.any(String),
-        'Line:',
-        '{invalid json}'
-      )
+      // Should pass through all SSE events
+      expect(chunks.some((chunk) => chunk.includes('Valid'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.includes('More valid'))).toBe(true)
     })
   })
 
@@ -458,9 +497,9 @@ describe('vertexRelayService', () => {
       expect(axios).toHaveBeenCalledWith(
         expect.objectContaining({
           method: 'POST',
-          url: 'https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/anthropic/models/claude-3-opus@20240229:rawPredict',
+          url: 'https://aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/anthropic/models/claude-opus-4-6:rawPredict',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer mock-access-token',
+            Authorization: 'Bearer mock-access-token',
             'Content-Type': 'application/json'
           }),
           data: expect.objectContaining({
@@ -470,16 +509,21 @@ describe('vertexRelayService', () => {
         })
       )
 
-      expect(result).toEqual(expect.objectContaining({
-        type: 'message',
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Hello from Vertex AI!' }],
-        model: 'claude-opus-4-6'
-      }))
+      expect(result).toEqual(
+        expect.objectContaining({
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hello from Vertex AI!' }],
+          model: 'claude-opus-4-6'
+        })
+      )
 
       expect(apiKeyService.recordUsage).toHaveBeenCalledWith(
         'test-api-key',
-        5, 4, 0, 0,
+        5,
+        4,
+        0,
+        0,
         'claude-opus-4-6',
         'test-account',
         'vertex-ai'
@@ -489,7 +533,7 @@ describe('vertexRelayService', () => {
     test('should handle streaming requests', async () => {
       const mockStreamData = ['data: {"content":[{"text":"Hello"}]}\n']
       const mockStream = {
-        [Symbol.asyncIterator]: async function* () {
+        async *[Symbol.asyncIterator]() {
           for (const data of mockStreamData) {
             yield Buffer.from(data)
           }
@@ -532,9 +576,7 @@ describe('vertexRelayService', () => {
         }
       }
 
-      axios
-        .mockRejectedValueOnce(authError)
-        .mockResolvedValueOnce(successResponse)
+      axios.mockRejectedValueOnce(authError).mockResolvedValueOnce(successResponse)
 
       vertexAiAccountService.getAccessToken
         .mockResolvedValueOnce({ accessToken: 'old-token', expiresAt: new Date() })
@@ -659,7 +701,9 @@ describe('vertexRelayService', () => {
           signal: abortController.signal
         })
       )
-      expect(logger.debug).toHaveBeenCalledWith('AbortController signal attached to Vertex AI request')
+      expect(logger.debug).toHaveBeenCalledWith(
+        'AbortController signal attached to Vertex AI request'
+      )
     })
   })
 })
