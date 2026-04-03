@@ -346,7 +346,7 @@ async function routeToBackend(req, res, requestedModel) {
 
     try {
       // Extract request parameters
-      const { messages, model, temperature, max_tokens: maxTokens, stream } = req.body
+      const { model, stream } = req.body
 
       // Select an available Vertex AI account
       const sessionId = req.apiKey.id // Use API key ID as session ID for sticky sessions
@@ -362,16 +362,14 @@ async function routeToBackend(req, res, requestedModel) {
         })
       }
 
-      // Call Vertex AI relay service with selected account
+      // Call Vertex AI relay service — pass full requestBody to preserve tools, tool_choice, etc.
       const result = await vertexRelayService.sendVertexRequest({
-        messages,
+        requestBody: req.body,
         model,
-        temperature,
-        maxTokens,
         stream,
         apiKeyId: req.apiKey.id,
         signal: req.signal,
-        account // Pass the selected account directly
+        account
       })
 
       if (stream) {

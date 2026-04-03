@@ -19,53 +19,22 @@ const MODEL_MAPPING = {
 }
 
 /**
- * Convert Claude API message format to Vertex AI Partner Model format
- * @param {Array} messages - Claude API messages
- * @param {Object} options - Request options (model, temperature, max_tokens)
+ * Build Vertex AI Partner Model request body from a Claude API request.
+ *
+ * Strategy: pass through the original request body as-is (since Vertex AI
+ * Claude Partner Models accept the same format as the standard Claude API),
+ * only adding `anthropic_version` and removing `model` (specified in URL).
+ *
+ * This ensures all Claude API features (tools, tool_choice, system, metadata,
+ * top_p, top_k, stop_sequences, etc.) are forwarded to the upstream.
+ *
+ * @param {Object} requestBody - Original Claude API request body
  * @returns {Object} Vertex AI format request body
  */
-function convertClaudeToVertex(messages, options = {}) {
-  const {
-    model: _model = 'claude-opus-4-6',
-    temperature = 0.7,
-    max_tokens = 4096,
-    stream = false
-  } = options
-
-  const vertexRequest = {
-    anthropic_version: 'vertex-2023-10-16',
-    max_tokens,
-    temperature
-  }
-
-  // Include stream flag — required by Anthropic API on Vertex AI
-  if (stream) {
-    vertexRequest.stream = true
-  }
-
-  // Note: model is specified in URL path, not in request body
-
-  // Separate system messages from conversation messages
-  let systemContent = ''
-  const conversationMessages = []
-
-  for (const message of messages) {
-    if (message.role === 'system') {
-      systemContent += (systemContent ? '\n\n' : '') + message.content
-    } else {
-      conversationMessages.push({
-        role: message.role,
-        content: message.content
-      })
-    }
-  }
-
-  // Add system content if present
-  if (systemContent) {
-    vertexRequest.system = systemContent
-  }
-
-  vertexRequest.messages = conversationMessages
+function buildVertexRequestBody(requestBody) {
+  // Spread original body, remove model (it goes in URL path), ensure anthropic_version
+  const { model: _model, ...vertexRequest } = requestBody
+  vertexRequest.anthropic_version = vertexRequest.anthropic_version || 'vertex-2023-10-16'
 
   return vertexRequest
 }
@@ -267,6 +236,7 @@ function createProxyAgent(proxyConfig) {
  * @returns {Object|AsyncGenerator} Response or streaming generator
  */
 async function sendVertexRequest({
+  requestBody = null,
   messages,
   model = 'claude-opus-4-6',
   temperature = 0.7,
@@ -293,13 +263,20 @@ async function sendVertexRequest({
     // Map Claude model name to Vertex AI Partner Model name
     const vertexModel = MODEL_MAPPING[model] || MODEL_MAPPING['claude-opus-4-6']
 
-    // Convert Claude API request to Vertex AI format
-    const vertexRequest = convertClaudeToVertex(messages, {
-      model,
-      temperature,
-      max_tokens: maxTokens,
-      stream
-    })
+    // Build Vertex AI request body — prefer full requestBody passthrough for tool support
+    let vertexRequest
+    if (requestBody) {
+      vertexRequest = buildVertexRequestBody(requestBody)
+    } else {
+      // Fallback: build minimal request from individual parameters
+      vertexRequest = buildVertexRequestBody({
+        messages,
+        model,
+        temperature,
+        max_tokens: maxTokens,
+        stream
+      })
+    }
 
     // Build API endpoint URL
     const endpoint = stream ? 'streamRawPredict' : 'rawPredict'
@@ -638,7 +615,7 @@ async function streamResponse({
 
 module.exports = {
   sendVertexRequest,
-  convertClaudeToVertex,
+  buildVertexRequestBody,
   convertVertexResponse,
   handleVertexStream,
   stream: streamResponse

@@ -928,19 +928,12 @@ async function handleMessagesRequest(req, res) {
         const _headersVertex = req.headers
 
         await vertexRelayService.sendVertexRequest({
-          messages: _requestBodyVertex.messages,
+          requestBody: { ..._requestBodyVertex, stream: true },
           model: _requestBodyVertex.model,
-          temperature: _requestBodyVertex.temperature,
-          maxTokens: _requestBodyVertex.max_tokens,
           stream: true,
-          accessToken: null, // Will be retrieved from account
-          proxy: null, // Will be retrieved from config
           apiKeyId: _apiKeyIdVertex,
           signal: req.signal,
-          projectId: null, // Will be retrieved from account
-          location: null, // Will be retrieved from account
           accountId,
-          res,
           usageCallback: (usageData) => {
             // Vertex AI streaming usage callback
             if (
@@ -1310,12 +1303,9 @@ async function handleMessagesRequest(req, res) {
           `[DEBUG] Calling vertexRelayService.sendVertexRequest with accountId: ${accountId}`
         )
         const vertexResult = await vertexRelayService.sendVertexRequest({
-          messages: _requestBodyNonStream.messages,
+          requestBody: _requestBodyNonStream,
           model: _requestBodyNonStream.model,
-          temperature: _requestBodyNonStream.temperature,
-          maxTokens: _requestBodyNonStream.max_tokens,
           stream: false,
-          proxy: null, // Will be retrieved from config
           apiKeyId: _apiKeyNonStream.id,
           signal: req.signal,
           accountId

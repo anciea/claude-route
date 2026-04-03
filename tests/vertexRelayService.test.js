@@ -51,83 +51,84 @@ describe('vertexRelayService', () => {
     jest.clearAllMocks()
   })
 
-  describe('convertClaudeToVertex', () => {
-    test('should convert Claude API message format to Vertex AI Partner Model format', () => {
-      const claudeMessages = [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: 'Hello, how are you?' },
-        { role: 'assistant', content: 'I am doing well, thank you!' },
-        { role: 'user', content: 'What is the weather like?' }
-      ]
-
-      // Model is specified in the URL path, not in the request body
-      const expectedVertexRequest = {
-        anthropic_version: 'vertex-2023-10-16',
-        max_tokens: 4096,
-        temperature: 0.7,
-        system: 'You are a helpful assistant.',
+  describe('buildVertexRequestBody', () => {
+    test('should pass through request body and add anthropic_version', () => {
+      const requestBody = {
+        model: 'claude-opus-4-6',
         messages: [
           { role: 'user', content: 'Hello, how are you?' },
-          { role: 'assistant', content: 'I am doing well, thank you!' },
-          { role: 'user', content: 'What is the weather like?' }
-        ]
+          { role: 'assistant', content: 'I am doing well!' },
+          { role: 'user', content: 'What is the weather?' }
+        ],
+        system: 'You are a helpful assistant.',
+        max_tokens: 4096,
+        temperature: 0.7
       }
 
-      const result = vertexRelayService.convertClaudeToVertex(claudeMessages, {
-        temperature: 0.7,
-        max_tokens: 4096
-      })
+      const result = vertexRelayService.buildVertexRequestBody(requestBody)
 
-      expect(result).toEqual(expectedVertexRequest)
+      // Model should be removed (it goes in URL path)
+      expect(result.model).toBeUndefined()
+      // anthropic_version should be added
+      expect(result.anthropic_version).toBe('vertex-2023-10-16')
+      // All other fields should be preserved
+      expect(result.messages).toEqual(requestBody.messages)
+      expect(result.system).toBe('You are a helpful assistant.')
+      expect(result.temperature).toBe(0.7)
+      expect(result.max_tokens).toBe(4096)
     })
 
     test('should not include model field in request body (model is in URL path)', () => {
-      const claudeMessages = [{ role: 'user', content: 'Test message' }]
-
-      const result = vertexRelayService.convertClaudeToVertex(claudeMessages, {
+      const result = vertexRelayService.buildVertexRequestBody({
         model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'Test' }],
         temperature: 0.5,
         max_tokens: 2048
       })
 
-      // Model should NOT be in the request body for Vertex AI Partner Model API
       expect(result.model).toBeUndefined()
       expect(result.anthropic_version).toBe('vertex-2023-10-16')
       expect(result.temperature).toBe(0.5)
       expect(result.max_tokens).toBe(2048)
     })
 
-    test('should use direct model name (no legacy mapping)', () => {
-      const claudeMessages = [{ role: 'user', content: 'Test message' }]
+    test('should preserve tools and tool_choice fields', () => {
+      const tools = [
+        {
+          name: 'read_file',
+          description: 'Read a file',
+          input_schema: { type: 'object', properties: { path: { type: 'string' } } }
+        }
+      ]
+      const result = vertexRelayService.buildVertexRequestBody({
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'Read the file' }],
+        max_tokens: 1024,
+        tools,
+        tool_choice: { type: 'auto' }
+      })
 
-      const result = vertexRelayService.convertClaudeToVertex(claudeMessages, {
-        model: 'claude-sonnet-4-6',
-        temperature: 1.0,
+      expect(result.tools).toEqual(tools)
+      expect(result.tool_choice).toEqual({ type: 'auto' })
+      expect(result.model).toBeUndefined()
+    })
+
+    test('should preserve existing anthropic_version if provided', () => {
+      const result = vertexRelayService.buildVertexRequestBody({
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'Test' }],
+        anthropic_version: 'vertex-2024-01-01',
         max_tokens: 1024
       })
 
-      // Model names are passed through directly, not remapped
-      expect(result.model).toBeUndefined()
-      expect(result.anthropic_version).toBe('vertex-2023-10-16')
+      expect(result.anthropic_version).toBe('vertex-2024-01-01')
     })
 
-    test('should handle messages without system prompt', () => {
-      const claudeMessages = [
-        { role: 'user', content: 'Hello!' },
-        { role: 'assistant', content: 'Hi there!' }
-      ]
-
-      const result = vertexRelayService.convertClaudeToVertex(claudeMessages)
-
-      expect(result.system).toBeUndefined()
-      expect(result.messages).toHaveLength(2)
-      expect(result.anthropic_version).toBe('vertex-2023-10-16')
-    })
-
-    test('should handle empty messages array', () => {
-      const claudeMessages = []
-
-      const result = vertexRelayService.convertClaudeToVertex(claudeMessages)
+    test('should handle minimal request body', () => {
+      const result = vertexRelayService.buildVertexRequestBody({
+        messages: [],
+        max_tokens: 1024
+      })
 
       expect(result.messages).toEqual([])
       expect(result.anthropic_version).toBe('vertex-2023-10-16')
