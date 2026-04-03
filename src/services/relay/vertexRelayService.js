@@ -1,4 +1,5 @@
 const axios = require('axios')
+const { StringDecoder } = require('string_decoder')
 const ProxyHelper = require('../../utils/proxyHelper')
 const logger = require('../../utils/logger')
 const config = require('../../../config/config')
@@ -139,6 +140,8 @@ function convertVertexResponse(vertexResponse, model, isStream = false) {
  */
 async function* handleVertexStream(response, model, apiKeyId, accountId = null) {
   let buffer = ''
+  // Use StringDecoder to handle multi-byte UTF-8 characters split across chunks
+  const decoder = new StringDecoder('utf8')
   // Accumulate SSE event lines (event: + data: pairs) to yield as complete events
   let pendingLines = []
   let inputTokens = 0
@@ -148,11 +151,11 @@ async function* handleVertexStream(response, model, apiKeyId, accountId = null) 
 
   try {
     for await (const chunk of response.data) {
-      const chunkStr = chunk.toString()
+      const chunkStr = decoder.write(chunk)
       chunkCount++
       if (chunkCount <= 3) {
         logger.debug(
-          `🔍 Vertex AI stream chunk #${chunkCount} (${chunkStr.length} bytes): ${chunkStr.substring(0, 200)}`
+          `🔍 Vertex AI stream chunk #${chunkCount} (${chunkStr.length} chars): ${chunkStr.substring(0, 200)}`
         )
       }
       buffer += chunkStr
@@ -197,6 +200,12 @@ async function* handleVertexStream(response, model, apiKeyId, accountId = null) 
           pendingLines.push(trimmed)
         }
       }
+    }
+
+    // Flush any remaining bytes from StringDecoder (incomplete UTF-8 sequences)
+    const remaining = decoder.end()
+    if (remaining) {
+      buffer += remaining
     }
 
     // Flush any remaining buffered content
