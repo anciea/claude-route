@@ -35,9 +35,11 @@ function detectBackendFromModel(modelName) {
     return 'claude'
   }
 
-  // Gemini 模型
+  // Gemini 模型 - 优先通过 Vertex AI 调用（使用 Service Account）
+  // 若无可用 Vertex AI 账户，上层会报错；如需使用 OAuth/Code Assist 后端，
+  // 客户端可显式携带 header "x-backend: gemini" 覆盖（见下方 override 逻辑）。
   if (model.startsWith('gemini-')) {
-    return 'gemini'
+    return 'vertex-ai'
   }
 
   // OpenAI 模型
@@ -51,7 +53,13 @@ function detectBackendFromModel(modelName) {
 
 // 🚀 智能后端路由处理器
 async function routeToBackend(req, res, requestedModel) {
-  const backend = detectBackendFromModel(requestedModel)
+  // 允许客户端通过 x-backend header 覆盖默认后端（例如 gemini-* 默认走 vertex-ai，
+  // 可通过 "x-backend: gemini" 强制使用 OAuth/Code Assist 后端）
+  const backendOverride = (req.headers['x-backend'] || '').toString().toLowerCase().trim()
+  const allowedOverrides = new Set(['claude', 'openai', 'gemini', 'vertex-ai'])
+  const backend = allowedOverrides.has(backendOverride)
+    ? backendOverride
+    : detectBackendFromModel(requestedModel)
 
   logger.info(`🔀 Routing request - Model: ${requestedModel}, Backend: ${backend}`)
 
@@ -333,11 +341,15 @@ async function routeToBackend(req, res, requestedModel) {
       return await geminiHandleGenerateContent(req, res)
     }
   } else if (backend === 'vertex-ai') {
-    // Vertex AI 后端：Claude 4.6 models via Google Cloud Vertex AI
-    if (!apiKeyService.hasPermission(permissions, 'claude')) {
+    // Vertex AI 后端：支持 Claude 4.6 和 Gemini 模型
+    // 权限按模型类型区分检查：gemini-* 需要 gemini 权限，其他视为 Claude
+    const isGeminiRequest =
+      typeof requestedModel === 'string' && requestedModel.toLowerCase().startsWith('gemini-')
+    const requiredPermission = isGeminiRequest ? 'gemini' : 'claude'
+    if (!apiKeyService.hasPermission(permissions, requiredPermission)) {
       return res.status(403).json({
         error: {
-          message: 'This API key does not have permission to access Claude',
+          message: `This API key does not have permission to access ${isGeminiRequest ? 'Gemini' : 'Claude'}`,
           type: 'permission_denied',
           code: 'permission_denied'
         }

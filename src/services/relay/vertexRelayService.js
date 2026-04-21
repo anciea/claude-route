@@ -11,11 +11,36 @@ const { getCurrentUsage } = require('../../utils/vertexStreamHandler')
 // Vertex AI Partner Model API base URL
 const VERTEX_AI_BASE_URL = 'https://aiplatform.googleapis.com/v1'
 
-// Model name mappings - use direct model names as they work in Vertex AI
+// Claude model name mappings - use direct model names as they work in Vertex AI
 const MODEL_MAPPING = {
   'claude-opus-4-6': 'claude-opus-4-6',
   'claude-sonnet-4-6': 'claude-sonnet-4-6',
   'claude-haiku-4-5': 'claude-haiku-4-5'
+}
+
+// Gemini model name mappings for Vertex AI (publisher: google)
+const GEMINI_MODEL_MAPPING = {
+  'gemini-2.5-pro': 'gemini-2.5-pro',
+  'gemini-2.5-flash': 'gemini-2.5-flash',
+  'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
+  'gemini-2.0-flash': 'gemini-2.0-flash-001',
+  'gemini-2.0-flash-001': 'gemini-2.0-flash-001',
+  'gemini-2.0-flash-exp': 'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-lite': 'gemini-2.0-flash-lite-001',
+  'gemini-1.5-pro': 'gemini-1.5-pro-002',
+  'gemini-1.5-flash': 'gemini-1.5-flash-002'
+}
+
+/**
+ * Check if a model is a Gemini model (routed to publisher=google on Vertex AI)
+ * @param {string} model - Model name
+ * @returns {boolean}
+ */
+function isGeminiModel(model) {
+  if (!model || typeof model !== 'string') {
+    return false
+  }
+  return model.toLowerCase().startsWith('gemini-')
 }
 
 /**
@@ -37,6 +62,217 @@ function buildVertexRequestBody(requestBody) {
   vertexRequest.anthropic_version = vertexRequest.anthropic_version || 'vertex-2023-10-16'
 
   return vertexRequest
+}
+
+/**
+ * Convert Claude/OpenAI message content to Gemini parts format.
+ * Supports both plain strings and Claude-style content block arrays.
+ * @param {string|Array} content - Message content
+ * @returns {Array} Gemini parts array
+ */
+function convertContentToGeminiParts(content) {
+  if (typeof content === 'string') {
+    return [{ text: content }]
+  }
+  if (!Array.isArray(content)) {
+    return [{ text: String(content ?? '') }]
+  }
+
+  const parts = []
+  for (const block of content) {
+    if (!block || typeof block !== 'object') {
+      continue
+    }
+    if (block.type === 'text' && typeof block.text === 'string') {
+      parts.push({ text: block.text })
+    } else if (block.type === 'image' && block.source) {
+      // Claude image block -> Gemini inlineData
+      const src = block.source
+      if (src.type === 'base64' && src.data && src.media_type) {
+        parts.push({
+          inlineData: {
+            mimeType: src.media_type,
+            data: src.data
+          }
+        })
+      }
+    }
+  }
+  return parts.length > 0 ? parts : [{ text: '' }]
+}
+
+/**
+ * Convert Claude API request body to Gemini Vertex AI format.
+ *
+ * Gemini format:
+ *   {
+ *     contents: [{role: "user"|"model", parts: [...]}, ...],
+ *     systemInstruction: {parts: [{text: "..."}]},
+ *     generationConfig: {temperature, maxOutputTokens, topP, topK, stopSequences},
+ *     safetySettings: [...],
+ *     tools: [...]
+ *   }
+ *
+ * @param {Object} requestBody - Claude API format request body
+ * @returns {Object} Gemini format request body
+ */
+function buildGeminiRequestBody(requestBody) {
+  const {
+    messages = [],
+    system,
+    temperature,
+    max_tokens: maxTokens,
+    top_p: topP,
+    top_k: topK,
+    stop_sequences: stopSequences,
+    tools,
+    tool_choice: toolChoice,
+    // Pass through fields that may already be in Gemini format
+    contents: existingContents,
+    generationConfig: existingGenerationConfig,
+    systemInstruction: existingSystemInstruction,
+    safetySettings
+  } = requestBody
+
+  // If caller already provided Gemini-native fields, pass them through
+  if (existingContents) {
+    const out = {
+      contents: existingContents
+    }
+    if (existingSystemInstruction) {
+      out.systemInstruction = existingSystemInstruction
+    }
+    if (existingGenerationConfig) {
+      out.generationConfig = existingGenerationConfig
+    }
+    if (safetySettings) {
+      out.safetySettings = safetySettings
+    }
+    if (tools) {
+      out.tools = tools
+    }
+    return out
+  }
+
+  // Convert Claude messages to Gemini contents
+  const contents = []
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') {
+      continue
+    }
+    const role = message.role === 'assistant' ? 'model' : 'user'
+    const parts = convertContentToGeminiParts(message.content)
+    contents.push({ role, parts })
+  }
+
+  const geminiRequest = { contents }
+
+  // System prompt -> systemInstruction
+  if (system) {
+    let systemText = ''
+    if (typeof system === 'string') {
+      systemText = system
+    } else if (Array.isArray(system)) {
+      systemText = system
+        .map((block) => (block && block.text ? block.text : ''))
+        .filter(Boolean)
+        .join('\n\n')
+    }
+    if (systemText) {
+      geminiRequest.systemInstruction = {
+        parts: [{ text: systemText }]
+      }
+    }
+  }
+
+  // Build generationConfig from Claude-style params
+  const generationConfig = {}
+  if (typeof temperature === 'number') {
+    generationConfig.temperature = temperature
+  }
+  if (typeof maxTokens === 'number') {
+    generationConfig.maxOutputTokens = maxTokens
+  }
+  if (typeof topP === 'number') {
+    generationConfig.topP = topP
+  }
+  if (typeof topK === 'number') {
+    generationConfig.topK = topK
+  }
+  if (Array.isArray(stopSequences) && stopSequences.length > 0) {
+    generationConfig.stopSequences = stopSequences
+  }
+  if (Object.keys(generationConfig).length > 0) {
+    geminiRequest.generationConfig = generationConfig
+  }
+
+  // Tools — if provided in Claude/OpenAI format, pass through as-is
+  // (Vertex AI Gemini accepts functionDeclarations)
+  if (tools && Array.isArray(tools) && tools.length > 0) {
+    geminiRequest.tools = tools
+  }
+  if (toolChoice) {
+    geminiRequest.toolConfig = toolChoice
+  }
+
+  if (safetySettings) {
+    geminiRequest.safetySettings = safetySettings
+  }
+
+  return geminiRequest
+}
+
+/**
+ * Convert Gemini Vertex AI response to Claude API format.
+ *
+ * Gemini response:
+ *   {
+ *     candidates: [{content: {parts: [{text}], role}, finishReason}],
+ *     usageMetadata: {promptTokenCount, candidatesTokenCount}
+ *   }
+ *
+ * @param {Object} geminiResponse - Gemini response
+ * @param {string} model - Original model name
+ * @returns {Object} Claude API format response
+ */
+function convertGeminiToClaudeResponse(geminiResponse, model) {
+  const responseId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+  const candidate = geminiResponse.candidates?.[0]
+
+  const content = []
+  if (candidate?.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if (typeof part.text === 'string' && part.text.length > 0) {
+        content.push({ type: 'text', text: part.text })
+      }
+    }
+  }
+
+  // Map Gemini finishReason to Claude stop_reason
+  const finishReasonMap = {
+    STOP: 'end_turn',
+    MAX_TOKENS: 'max_tokens',
+    SAFETY: 'stop_sequence',
+    RECITATION: 'stop_sequence',
+    OTHER: 'end_turn'
+  }
+  const stopReason = finishReasonMap[candidate?.finishReason] || 'end_turn'
+
+  const usageMeta = geminiResponse.usageMetadata || {}
+
+  return {
+    id: responseId,
+    type: 'message',
+    role: 'assistant',
+    content: content.length > 0 ? content : [{ type: 'text', text: '' }],
+    model,
+    stop_reason: stopReason,
+    stop_sequence: null,
+    usage: {
+      input_tokens: usageMeta.promptTokenCount || 0,
+      output_tokens: usageMeta.candidatesTokenCount || 0
+    }
+  }
 }
 
 /**
@@ -222,6 +458,210 @@ async function* handleVertexStream(response, model, apiKeyId, accountId = null) 
 }
 
 /**
+ * Handle Vertex AI Gemini streaming response.
+ *
+ * Gemini streamGenerateContent with `?alt=sse` returns standard SSE:
+ *   data: {"candidates":[{"content":{"parts":[{"text":"..."}],"role":"model"}}]}
+ *
+ *   data: {"candidates":[{"content":{"parts":[{"text":"..."}]},"finishReason":"STOP"}],"usageMetadata":{...}}
+ *
+ * Without `?alt=sse`, Gemini returns a JSON array streamed progressively.
+ *
+ * This generator converts each Gemini chunk to Claude-native SSE events for
+ * compatibility with the /v1/messages endpoint.
+ *
+ * @param {Object} response - Axios response with stream
+ * @param {string} model - Model name
+ * @param {string} apiKeyId - API Key ID for usage tracking
+ * @param {string} accountId - Account ID
+ * @returns {AsyncGenerator} Streaming response generator
+ */
+async function* handleGeminiVertexStream(response, model, apiKeyId, accountId = null) {
+  const decoder = new StringDecoder('utf8')
+  let buffer = ''
+  let inputTokens = 0
+  let outputTokens = 0
+  let messageStartSent = false
+  let contentBlockStartSent = false
+  let finalStopReason = 'end_turn'
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+
+  const finishReasonMap = {
+    STOP: 'end_turn',
+    MAX_TOKENS: 'max_tokens',
+    SAFETY: 'stop_sequence',
+    RECITATION: 'stop_sequence',
+    OTHER: 'end_turn'
+  }
+
+  function processGeminiChunk(parsed) {
+    const events = []
+
+    // Emit message_start on first chunk
+    if (!messageStartSent) {
+      messageStartSent = true
+      events.push(
+        `event: message_start\ndata: ${JSON.stringify({
+          type: 'message_start',
+          message: {
+            id: messageId,
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model,
+            stop_reason: null,
+            stop_sequence: null,
+            usage: { input_tokens: 0, output_tokens: 0 }
+          }
+        })}\n\n`
+      )
+    }
+
+    const candidate = parsed.candidates?.[0]
+    if (candidate?.content?.parts) {
+      for (const part of candidate.content.parts) {
+        if (typeof part.text === 'string' && part.text.length > 0) {
+          if (!contentBlockStartSent) {
+            contentBlockStartSent = true
+            events.push(
+              `event: content_block_start\ndata: ${JSON.stringify({
+                type: 'content_block_start',
+                index: 0,
+                content_block: { type: 'text', text: '' }
+              })}\n\n`
+            )
+          }
+          events.push(
+            `event: content_block_delta\ndata: ${JSON.stringify({
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'text_delta', text: part.text }
+            })}\n\n`
+          )
+        }
+      }
+    }
+
+    if (candidate?.finishReason) {
+      finalStopReason = finishReasonMap[candidate.finishReason] || 'end_turn'
+    }
+
+    // Track usage metadata from any chunk that carries it
+    if (parsed.usageMetadata) {
+      if (typeof parsed.usageMetadata.promptTokenCount === 'number') {
+        inputTokens = parsed.usageMetadata.promptTokenCount
+      }
+      if (typeof parsed.usageMetadata.candidatesTokenCount === 'number') {
+        outputTokens = parsed.usageMetadata.candidatesTokenCount
+      }
+    }
+
+    return events
+  }
+
+  try {
+    for await (const chunk of response.data) {
+      buffer += decoder.write(chunk)
+
+      // Process complete SSE events separated by blank lines
+      let idx
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, idx)
+        buffer = buffer.slice(idx + 2)
+
+        // Each SSE event may contain `data: ...` lines
+        for (const line of rawEvent.split('\n')) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) {
+            continue
+          }
+          const jsonStr = trimmed.slice(5).trim()
+          if (!jsonStr || jsonStr === '[DONE]') {
+            continue
+          }
+          try {
+            const parsed = JSON.parse(jsonStr)
+            for (const event of processGeminiChunk(parsed)) {
+              yield event
+            }
+          } catch (e) {
+            logger.debug(
+              `Gemini stream JSON parse error: ${e.message} (data: ${jsonStr.slice(0, 200)})`
+            )
+          }
+        }
+      }
+    }
+
+    // Flush remaining buffer
+    const tail = decoder.end()
+    if (tail) {
+      buffer += tail
+    }
+    if (buffer.trim()) {
+      for (const line of buffer.split('\n')) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) {
+          continue
+        }
+        const jsonStr = trimmed.slice(5).trim()
+        if (!jsonStr || jsonStr === '[DONE]') {
+          continue
+        }
+        try {
+          const parsed = JSON.parse(jsonStr)
+          for (const event of processGeminiChunk(parsed)) {
+            yield event
+          }
+        } catch (_e) {
+          // ignore trailing garbage
+        }
+      }
+    }
+
+    // Emit closing events in Claude SSE order
+    if (contentBlockStartSent) {
+      yield `event: content_block_stop\ndata: ${JSON.stringify({
+        type: 'content_block_stop',
+        index: 0
+      })}\n\n`
+    }
+
+    if (messageStartSent) {
+      yield `event: message_delta\ndata: ${JSON.stringify({
+        type: 'message_delta',
+        delta: { stop_reason: finalStopReason, stop_sequence: null },
+        usage: { output_tokens: outputTokens }
+      })}\n\n`
+
+      yield `event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`
+    }
+
+    // Record usage
+    if (apiKeyId && (inputTokens > 0 || outputTokens > 0)) {
+      await apiKeyService
+        .recordUsage(apiKeyId, inputTokens, outputTokens, 0, 0, model, accountId, 'vertex-ai')
+        .catch((error) => {
+          logger.error('❌ Failed to record Vertex AI (Gemini) usage:', error)
+        })
+      logger.debug(
+        `💰 Vertex AI Gemini stream completed for ${model}: input=${inputTokens}, output=${outputTokens}`
+      )
+    }
+  } catch (error) {
+    if (error.name === 'CanceledError' || error.code === 'ECONNABORTED') {
+      logger.info('Vertex AI Gemini stream request was aborted by client')
+    } else {
+      logger.error('Vertex AI Gemini stream processing error:', error)
+      yield `event: error\ndata: ${JSON.stringify({
+        type: 'error',
+        error: { type: 'stream_error', message: error.message }
+      })}\n\n`
+    }
+  }
+}
+
+/**
  * Create proxy agent for requests
  * @param {Object} proxyConfig - Proxy configuration
  * @returns {Object|null} Proxy agent or null
@@ -260,27 +700,49 @@ async function sendVertexRequest({
     // Get access token
     const { accessToken } = await vertexAiAccountService.getAccessToken(account.id)
 
-    // Map Claude model name to Vertex AI Partner Model name
-    const vertexModel = MODEL_MAPPING[model] || MODEL_MAPPING['claude-opus-4-6']
+    // Determine provider: Gemini (publisher=google) vs Claude (publisher=anthropic)
+    const useGemini = isGeminiModel(model)
 
-    // Build Vertex AI request body — prefer full requestBody passthrough for tool support
+    let vertexModel
     let vertexRequest
-    if (requestBody) {
-      vertexRequest = buildVertexRequestBody(requestBody)
-    } else {
-      // Fallback: build minimal request from individual parameters
-      vertexRequest = buildVertexRequestBody({
+    let apiUrl
+
+    if (useGemini) {
+      // Gemini model: resolve Vertex model id and build Gemini-format request
+      vertexModel = GEMINI_MODEL_MAPPING[model] || model
+
+      const sourceBody = requestBody || {
         messages,
         model,
         temperature,
         max_tokens: maxTokens,
         stream
-      })
-    }
+      }
+      vertexRequest = buildGeminiRequestBody(sourceBody)
 
-    // Build API endpoint URL
-    const endpoint = stream ? 'streamRawPredict' : 'rawPredict'
-    const apiUrl = `${VERTEX_AI_BASE_URL}/projects/${account.projectId}/locations/${account.location}/publishers/anthropic/models/${vertexModel}:${endpoint}`
+      // Gemini endpoints use ?alt=sse for SSE streaming
+      const endpoint = stream ? 'streamGenerateContent?alt=sse' : 'generateContent'
+      apiUrl = `${VERTEX_AI_BASE_URL}/projects/${account.projectId}/locations/${account.location}/publishers/google/models/${vertexModel}:${endpoint}`
+    } else {
+      // Claude model: map and build Claude Partner Model request (unchanged behavior)
+      vertexModel = MODEL_MAPPING[model] || MODEL_MAPPING['claude-opus-4-6']
+
+      if (requestBody) {
+        vertexRequest = buildVertexRequestBody(requestBody)
+      } else {
+        // Fallback: build minimal request from individual parameters
+        vertexRequest = buildVertexRequestBody({
+          messages,
+          model,
+          temperature,
+          max_tokens: maxTokens,
+          stream
+        })
+      }
+
+      const endpoint = stream ? 'streamRawPredict' : 'rawPredict'
+      apiUrl = `${VERTEX_AI_BASE_URL}/projects/${account.projectId}/locations/${account.location}/publishers/anthropic/models/${vertexModel}:${endpoint}`
+    }
 
     // Configure request options
     const axiosConfig = {
@@ -355,10 +817,16 @@ async function sendVertexRequest({
     }
 
     if (stream) {
+      // Branch streaming handler based on provider
+      if (useGemini) {
+        return handleGeminiVertexStream(response, model, apiKeyId, accountId)
+      }
       return handleVertexStream(response, model, apiKeyId, accountId)
     } else {
-      // Non-streaming response
-      const claudeResponse = convertVertexResponse(response.data, model, false)
+      // Non-streaming response: branch based on provider
+      const claudeResponse = useGemini
+        ? convertGeminiToClaudeResponse(response.data, model)
+        : convertVertexResponse(response.data, model, false)
 
       let costData = null
       let duration = 0
@@ -618,5 +1086,11 @@ module.exports = {
   buildVertexRequestBody,
   convertVertexResponse,
   handleVertexStream,
+  // Gemini-specific helpers (exported for tests)
+  isGeminiModel,
+  buildGeminiRequestBody,
+  convertGeminiToClaudeResponse,
+  handleGeminiVertexStream,
+  GEMINI_MODEL_MAPPING,
   stream: streamResponse
 }
